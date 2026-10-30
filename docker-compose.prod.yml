@@ -1,0 +1,18 @@
+# Production override: different host ports, database not published, auto-restart.
+# Use with .env.prod and project name "dealcopilot-prod" (see README).
+# A separate project name gives production its own containers, network and Neo4j volume,
+# so nothing done in development can touch production data.
+
+services:
+  neo4j:
+    restart: unless-stopped
+
+  api:
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+
+  frontend:
+    restart: unless-stopped
+    ports:
+      - "3100:3000"

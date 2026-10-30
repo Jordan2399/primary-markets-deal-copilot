@@ -1,0 +1,19 @@
+# Development override: ports open for debugging, API reloads on code changes.
+# Use with .env.dev and project name "dealcopilot-dev" (see README).
+
+services:
+  neo4j:
+    ports:
+      - "7474:7474" # Neo4j Browser
+      - "7687:7687" # Bolt
+
+  api:
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/srv/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    ports:
+      - "3000:3000"
