@@ -7,7 +7,7 @@ Behaviour you can rely on:
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 
 import structlog
@@ -28,6 +28,9 @@ from app.deals.templates import (
     instantiate_tasks,
 )
 from app.documents.service import DocumentService
+from app.investors.generator import build_investors
+from app.orderbook.generator import default_params, generate_orders
+from app.orderbook.repository import Neo4jOrderBookRepository
 from app.seed.data import DEALS, ISSUERS, deal_name, launch_date, pricing_terms
 
 log = structlog.get_logger()
@@ -63,6 +66,8 @@ class SeedReport:
     issuers: int = 0
     deals_created: int = 0
     deals_skipped: int = 0
+    investors: int = 0
+    books_created: int = 0
     playbook_pages: int = 0
     playbook_chunks: int = 0
 
@@ -84,6 +89,45 @@ async def _create_deal(
         return True
 
     return await db.execute_write(work)
+
+
+BOOK_STAGES = ("book_building", "pricing", "allocation", "booking")
+
+
+async def _seed_books(db: Neo4jClient, today: date, report: SeedReport) -> None:
+    """Load the 150 investors, then give every deal that has reached book building an order book.
+
+    A deal that already has orders is left alone, so re-running the seed keeps your edits.
+    """
+    repo = Neo4jOrderBookRepository(db)
+    investors = build_investors()
+    await repo.upsert_investors(investors)
+    report.investors = len(investors)
+
+    for index, spec in enumerate(d for d in DEALS if d.stage_code in BOOK_STAGES):
+        if await repo.count_orders(spec.deal_id) > 0:
+            continue
+        launch = datetime.combine(launch_date(spec, today), time(0), tzinfo=UTC)
+        params = default_params(spec.deal_id, launch)
+        orders = generate_orders(
+            deal_id=spec.deal_id,
+            deal_size_k=spec.size_mm * 1000,
+            investors=investors,
+            params=params,
+            seed=1,
+            target_cover=2.2 + 0.4 * index,
+            anomalies=4,
+        )
+        event = build_event(
+            SEED_USER,
+            "orderbook.simulate",
+            "deal",
+            spec.deal_id,
+            deal_id=spec.deal_id,
+            details={"seeded": True, "orders_created": len(orders)},
+        )
+        await repo.save_book(spec.deal_id, params, orders, replace=True, event=event)
+        report.books_created += 1
 
 
 async def seed_database(
@@ -162,6 +206,8 @@ async def seed_database(
         if not await _create_deal(db, deal, spec.stage_code, tasks, deps, event):
             raise RuntimeError(f"Could not create {spec.deal_id}: issuer or stage missing.")
         report.deals_created += 1
+
+    await _seed_books(db, today, report)
 
     if docs is not None:
         for path in sorted(PLAYBOOK_DIR.glob("*.md")):

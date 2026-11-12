@@ -1,6 +1,6 @@
 """In-memory stand-ins for the repositories, so business rules can be tested without Neo4j."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.audit.models import AuditEvent, build_event
@@ -287,3 +287,117 @@ def parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
         if name:
             events.append((name, json.loads(data)))
     return events
+
+
+# ---------------------------------------------------------------- Day 2 fakes
+from app.allocation.models import Proposal, ProposalSummary  # noqa: E402
+from app.investors.generator import build_investors  # noqa: E402
+from app.investors.models import Investor  # noqa: E402
+from app.orderbook.models import BookParams, NewOrder, OrderRow  # noqa: E402
+from app.termsheets.models import StoredTermSheet  # noqa: E402
+
+
+class FakeOrderBookRepository:
+    def __init__(self, events: list[AuditEvent], investors: list[Investor] | None = None) -> None:
+        self.events = events
+        self.investors = investors if investors is not None else build_investors()
+        self._params: dict[str, BookParams] = {}
+        self._orders: dict[str, list[NewOrder]] = {}
+
+    async def upsert_investors(self, investors: list[Investor]) -> None:
+        self.investors = investors
+
+    async def list_investors(self) -> list[Investor]:
+        return self.investors
+
+    async def get_params(self, deal_id: str) -> BookParams | None:
+        return self._params.get(deal_id)
+
+    async def list_orders(self, deal_id: str) -> list[OrderRow]:
+        by_id = {i.id: i for i in self.investors}
+        rows = []
+        for o in sorted(self._orders.get(deal_id, []), key=lambda x: (x.placed_at, x.id)):
+            inv = by_id[o.investor_id]
+            rows.append(
+                OrderRow(
+                    id=o.id,
+                    investor_id=inv.id,
+                    investor_name=inv.name,
+                    investor_type=inv.type,
+                    region=inv.region,
+                    real_money=inv.real_money,
+                    ticket_mean_k=inv.ticket_mean_k,
+                    ticket_std_k=inv.ticket_std_k,
+                    past_participation=inv.past_participation,
+                    amount_k=o.amount_k,
+                    limit_bp=o.limit_bp,
+                    placed_at=o.placed_at,
+                )
+            )
+        return rows
+
+    async def count_orders(self, deal_id: str) -> int:
+        return len(self._orders.get(deal_id, []))
+
+    async def save_book(
+        self,
+        deal_id: str,
+        params: BookParams,
+        orders: list[NewOrder],
+        *,
+        replace: bool,
+        event: AuditEvent,
+    ) -> None:
+        self._params[deal_id] = params
+        self._orders[deal_id] = (
+            list(orders) if replace else [*self._orders.get(deal_id, []), *orders]
+        )
+        self.events.append(event)
+
+
+class FakeAllocationRepository:
+    def __init__(self, events: list[AuditEvent]) -> None:
+        self.events = events
+        self.proposals: dict[str, Proposal] = {}
+
+    async def save_proposal(self, proposal: Proposal, event: AuditEvent) -> None:
+        for key, existing in list(self.proposals.items()):
+            if existing.deal_id == proposal.deal_id and existing.state == "PROPOSED":
+                self.proposals[key] = existing.model_copy(update={"state": "SUPERSEDED"})
+        self.proposals[proposal.id] = proposal
+        self.events.append(event)
+
+    async def get(self, proposal_id: str) -> Proposal | None:
+        return self.proposals.get(proposal_id)
+
+    async def list(self, deal_id: str) -> list[ProposalSummary]:
+        return [
+            ProposalSummary(**p.model_dump(include=set(ProposalSummary.model_fields)))
+            for p in sorted(self.proposals.values(), key=lambda p: p.proposed_at, reverse=True)
+            if p.deal_id == deal_id
+        ]
+
+    async def approve(
+        self, proposal_id: str, approved_by: str, approved_at: datetime, event: AuditEvent
+    ) -> bool:
+        current = self.proposals.get(proposal_id)
+        if current is None or current.state != "PROPOSED":
+            return False
+        self.proposals[proposal_id] = current.model_copy(
+            update={"state": "APPROVED", "approved_by": approved_by, "approved_at": approved_at}
+        )
+        self.events.append(event)
+        return True
+
+
+class FakeTermSheetRepository:
+    def __init__(self, events: list[AuditEvent]) -> None:
+        self.events = events
+        self.docs: dict[str, StoredTermSheet] = {}
+
+    async def save(self, doc: StoredTermSheet, event: AuditEvent) -> None:
+        self.docs[doc.id] = doc
+        self.events.append(event)
+
+    async def get(self, doc_id: str) -> StoredTermSheet | None:
+        return self.docs.get(doc_id)

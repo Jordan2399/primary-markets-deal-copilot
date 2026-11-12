@@ -13,8 +13,12 @@ from datetime import date
 
 import pytest
 
+from app.allocation.repository import Neo4jAllocationRepository
+from app.allocation.service import AllocationService
 from app.audit.repository import Neo4jAuditRepository
-from app.core.errors import ConflictError
+from app.audit.service import AuditService
+from app.core.errors import ConflictError, ForbiddenError
+from app.core.security import CurrentUser, Role
 from app.db.neo4j import Neo4jClient
 from app.db.schema import ensure_schema
 from app.deals.models import TaskStatus
@@ -23,8 +27,12 @@ from app.deals.service import DealService
 from app.documents.repository import Neo4jDocumentRepository
 from app.documents.service import DocumentService
 from app.llm.fake import FakeLLM
+from app.orderbook.repository import Neo4jOrderBookRepository
+from app.orderbook.service import OrderBookService
 from app.seed.runner import PLAYBOOK_DIR, seed_database
-from tests.fakes import SYNDICATE
+from app.termsheets.repository import Neo4jTermSheetRepository
+from app.termsheets.service import TermSheetService
+from tests.fakes import MARKETER, SYNDICATE
 
 pytestmark = [
     pytest.mark.integration,
@@ -99,3 +107,57 @@ async def test_vector_search_ranks_the_right_page_first(seeded: Neo4jClient) -> 
     hits = await docs.search("how does allocation and scale back of orders work")
     assert hits and hits[0].doc_id == "playbook-allocation"
     assert len(list(PLAYBOOK_DIR.glob("*.md"))) >= 10
+
+
+APPROVER = CurrentUser(name="demo.approver", role=Role.approver)
+SYNDICATE_USER = CurrentUser(name="demo.syndicate", role=Role.syndicate)
+
+
+async def test_seed_loads_investors_and_books_and_is_repeatable(seeded: Neo4jClient) -> None:
+    repo = Neo4jOrderBookRepository(seeded)
+    assert len(await repo.list_investors()) == 150
+    assert await repo.count_orders("D-2026-007") > 30  # a deal at book building has a book
+    assert await repo.count_orders("D-DEMO-001") == 0  # a deal at documentation does not
+    report = await seed_database(seeded, None, today=date.today())
+    assert report.books_created == 0
+
+
+async def test_book_metrics_and_anomalies_against_neo4j(seeded: Neo4jClient) -> None:
+    service = OrderBookService(
+        Neo4jOrderBookRepository(seeded), DealService(Neo4jDealRepository(seeded))
+    )
+    book = await service.get_book("D-2026-007")
+    assert book.metrics is not None and book.metrics.cover_ratio > 1
+    assert {a.rule for a in book.anomalies} >= {"duplicate", "after_close"}
+
+
+async def test_allocation_four_eyes_against_neo4j(seeded: Neo4jClient) -> None:
+    deals = DealService(Neo4jDealRepository(seeded))
+    book = OrderBookService(Neo4jOrderBookRepository(seeded), deals)
+    service = AllocationService(
+        Neo4jAllocationRepository(seeded), book, FakeLLM(chat_responses=["ok", "ok"])
+    )
+    proposal = await service.propose("D-2026-009", None, SYNDICATE_USER)
+    assert proposal.total_allocated_k == proposal.deal_size_k
+    with pytest.raises(ForbiddenError):
+        await service.approve(proposal.id, SYNDICATE_USER)
+    approved = await service.approve(proposal.id, APPROVER)
+    assert approved.state == "APPROVED"
+    with pytest.raises(ConflictError):
+        await service.approve(proposal.id, APPROVER)
+
+
+async def test_term_sheet_round_trip_against_neo4j(seeded: Neo4jClient) -> None:
+    deals = DealService(Neo4jDealRepository(seeded))
+    service = TermSheetService(
+        Neo4jTermSheetRepository(seeded),
+        deals,
+        FakeLLM(fail=True),
+        AuditService(Neo4jAuditRepository(seeded)),
+    )
+    sample = await service.make_sample("D-2026-008", "bad")
+    doc = await service.extract(
+        filename=None, content=None, text=sample.text, deal_id="D-2026-008", user=MARKETER
+    )
+    report = await service.validate(doc.document_id, None, MARKETER)
+    assert report.has_errors and report.has_mismatch
