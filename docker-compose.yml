@@ -9,14 +9,14 @@ services:
     image: neo4j:5.26-community
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in your env file}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1g
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$NEO4J_PASSWORD\" 'RETURN 1' >/dev/null 2>&1"]
+      # NEO4J_AUTH is "neo4j/<password>"; do not add a NEO4J_PASSWORD var (the image treats it as a config setting and crashes).
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' >/dev/null 2>&1"]
       interval: 10s
       timeout: 8s
       retries: 12
@@ -38,6 +38,18 @@ services:
     extra_hosts:
       # Makes host.docker.internal work on Linux too (Docker Desktop on Windows has it already).
       - "host.docker.internal:host-gateway"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+  # One-off data loader: run with --profile tools (see README). Refuses to run when APP_ENV=production.
+  seed:
+    extends:
+      service: api
+    profiles: ["tools"]
+    command: ["python", "-m", "app.seed"]
+    healthcheck:
+      disable: true
     depends_on:
       neo4j:
         condition: service_healthy

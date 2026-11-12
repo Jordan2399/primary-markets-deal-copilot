@@ -1,1 +1,1 @@
-"""Lifecycle Copilot: LangGraph agent, retrieval tools, citations."""
+"""Lifecycle Copilot: LangGraph agent, retrieval, citations."""

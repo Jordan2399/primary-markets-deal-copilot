@@ -12,16 +12,16 @@ extraction and validation, and an investor appetite graph. It runs locally with 
 | Day | Scope | State |
 | --- | --- | --- |
 | 0 | Repo, Docker Compose (dev and prod), FastAPI health endpoint, Next.js status page, CI | **done** |
-| 1 | Neo4j schema, seed data, deals and audit modules, LLM client, Lifecycle Copilot | next |
-| 2 | Order book, allocation engine, term sheet extraction | planned |
+| 1 | Neo4j schema, seed data, deals and audit modules, LLM client, Lifecycle Copilot with sources, pipeline / workspace / Copilot / audit pages | **done** (see [docs/day-1-guide.md](docs/day-1-guide.md)) |
+| 2 | Order book, allocation engine with four-eyes approval, term sheet extraction and validation | **done** (see [docs/day-2-guide.md](docs/day-2-guide.md)) |
 | 3 | Investor graph, evaluation, polish, demo | planned |
 
-## Architecture (day 0)
+## Architecture
 
 ```
-Browser -> Next.js (3000) -> FastAPI (8000) -> Neo4j (7687)
-                                  |
-                                  +-> Ollama on the host GPU (11434)
+Browser -> Next.js (3000) --/api proxy--> FastAPI (8000) -> Neo4j (7687)
+                                               |
+                                               +-> Ollama on the host GPU (11434)
 ```
 
 Ollama runs natively on the host (not in Docker) so it can use the GPU. Containers reach it at
@@ -55,13 +55,28 @@ Ollama runs natively on the host (not in Docker) so it can use the GPU. Containe
    docker compose -p dealcopilot-dev --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml up --build
    ```
 
-4. Open:
-   - Frontend status page: http://localhost:3000
+4. Load the synthetic data (needs Ollama running, for the playbook embeddings):
+
+   ```powershell
+   docker compose -p dealcopilot-dev --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml --profile tools run --rm seed
+   ```
+
+   It is safe to run again: existing deals are skipped. Add `--reset` at the end to wipe and reload
+   (development only).
+
+5. Open:
+   - Frontend: http://localhost:3000 (pipeline), `/orderbook`, `/allocation`, `/termsheets`, `/copilot`, `/audit`, `/status`
    - API docs: http://localhost:8000/docs
    - API health: http://localhost:8000/api/v1/health
    - Neo4j Browser: http://localhost:7474 (user `neo4j`, password from `.env.dev`)
 
-The status page shows `ok` for both Neo4j and Ollama when everything is wired up. If Ollama shows
+Day 2: open **Allocation** with `D-2026-009` and check the sum equals the deal size; open **Term sheets**, load the sample with errors and look for the red mismatch (details in the Day 2 guide).
+
+Try the Day 1 gate: open **Copilot**, choose *Nordvik EUR 750m 5Y*, ask
+*"What is left before launch?"*. The answer must list the open tasks, and the *Evidence* panel shows
+the exact sources. Use the role selector (top right) to try `marketer`, `syndicate` and `admin`.
+
+The status page (`/status`) shows `ok` for both Neo4j and Ollama when everything is wired up. If Ollama shows
 as unreachable from the containers, set the Windows environment variable `OLLAMA_HOST=0.0.0.0`,
 restart Ollama, and allow it through the firewall for private networks only.
 
@@ -104,7 +119,7 @@ Backend:
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints.txt
 $env:NEO4J_URI = "bolt://localhost:7687"; $env:OLLAMA_BASE_URL = "http://localhost:11434"
 uvicorn app.main:app --reload
 ```
@@ -121,8 +136,11 @@ npm run dev
 
 ```powershell
 cd backend;  ruff check .; ruff format --check .; mypy app; pytest -q
-cd frontend; npm run lint; npm run build
+cd frontend; npm run lint; npm test; npm run build
 ```
+
+`pytest` skips the Neo4j integration tests unless `TEST_NEO4J_URI` is set (see
+`backend/tests/test_integration_neo4j.py`); CI runs them against a Neo4j service container.
 
 CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull request to `main` and
 `develop`, and validates both Compose stacks.
@@ -131,7 +149,8 @@ CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull requ
 
 ```
 backend/            FastAPI app: core, health, and one folder per module
-  app/deals/ orderbook/ documents/ investors/ copilot/ llm/ audit/   (filled from day 1)
+  app/deals/ documents/ copilot/ llm/ audit/ seed/ db/ common/   (day 1)
+  app/orderbook/ investors/                                      (planned)
 frontend/           Next.js (App Router, TypeScript)
 scripts/            check-env.ps1 (Windows environment check)
 docker-compose.yml  base stack; dev and prod overrides alongside
@@ -140,6 +159,12 @@ docker-compose.yml  base stack; dev and prod overrides alongside
 
 Module rule for later scaling: modules never import each other's internals and each owns its own
 data access, so any module can be split into a service later.
+
+## How this project was built
+
+It was built with AI assistance (Claude), working from a written scope and plan, and then reviewed,
+run and understood by the author. The commit history and `docs/day-1-guide.md` show the decisions.
+Anyone reading this repository should be told that plainly, and this section does so.
 
 ## Limits
 

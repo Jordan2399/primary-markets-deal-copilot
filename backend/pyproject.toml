@@ -11,13 +11,18 @@ dependencies = [
   "neo4j>=5.24,<6.0",
   "httpx>=0.27",
   "structlog>=24.4",
+  "langgraph>=0.2,<2",
+  "python-multipart>=0.0.9",
+  "pdfplumber>=0.11",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3",
-  "pytest-asyncio>=0.24",
+  "pytest-asyncio>=1.0",
+  "httpx2>=2.16",
   "ruff>=0.6",
+  "reportlab>=4.0",
   "mypy>=1.11",
 ]
 
@@ -32,6 +37,7 @@ include = ["app*"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = ["integration: needs a real Neo4j (set TEST_NEO4J_URI, TEST_NEO4J_PASSWORD)"]
 
 [tool.ruff]
 line-length = 100
@@ -39,6 +45,8 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+# Long lines are Cypher queries and prompts, which read better unbroken. The formatter wraps code.
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

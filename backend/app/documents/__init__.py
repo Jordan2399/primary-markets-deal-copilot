@@ -1,1 +1,1 @@
-"""Term sheet parsing, extraction, validation and booking diff."""
+"""Documents: playbook pages today; term sheets from day 2."""
