@@ -14,6 +14,7 @@ extraction and validation, and an investor appetite graph. It runs locally with 
 | 0 | Repo, Docker Compose (dev and prod), FastAPI health endpoint, Next.js status page, CI | **done** |
 | 1 | Neo4j schema, seed data, deals and audit modules, LLM client, Lifecycle Copilot with sources, pipeline / workspace / Copilot / audit pages | **done** (see [docs/day-1-guide.md](docs/day-1-guide.md)) |
 | 2 | Order book, allocation engine with four-eyes approval, term sheet extraction and validation | **done** (see [docs/day-2-guide.md](docs/day-2-guide.md)) |
+| 2b | Sign-in with roles, saved Copilot conversations with follow-ups, banking-style UI (light and dark) | **done** (see [docs/day-2b-guide.md](docs/day-2b-guide.md)) |
 | 3 | Investor graph, evaluation, polish, demo | planned |
 
 ## Architecture
@@ -64,7 +65,10 @@ Ollama runs natively on the host (not in Docker) so it can use the GPU. Containe
    It is safe to run again: existing deals are skipped. Add `--reset` at the end to wipe and reload
    (development only).
 
-5. Open:
+   The seed also creates the demo users. If you seeded before, build and run it again:
+   `... --profile tools build seed`, then the run command above.
+
+5. Open http://localhost:3000 and **sign in** (see below), then:
    - Frontend: http://localhost:3000 (pipeline), `/orderbook`, `/allocation`, `/termsheets`, `/copilot`, `/audit`, `/status`
    - API docs: http://localhost:8000/docs
    - API health: http://localhost:8000/api/v1/health
@@ -72,9 +76,22 @@ Ollama runs natively on the host (not in Docker) so it can use the GPU. Containe
 
 Day 2: open **Allocation** with `D-2026-009` and check the sum equals the deal size; open **Term sheets**, load the sample with errors and look for the red mismatch (details in the Day 2 guide).
 
+### Sign-in and demo users
+
+| Username | Role |
+| --- | --- |
+| `anna.syndicate` | syndicate: order book, propose allocation |
+| `marco.approver` | approver: approve allocation |
+| `mia.marketer` | marketer: create and edit deals |
+| `vera.viewer` | viewer: read and Copilot |
+| `admin.user` | admin: audit trail |
+
+Password: `DEMO_USER_PASSWORD` from `.env.dev`, or `DealCopilot-Demo-1` when it is empty. These are
+development accounts for synthetic data. Production needs its own `JWT_SECRET` (see `.env.prod.example`).
+
 Try the Day 1 gate: open **Copilot**, choose *Nordvik EUR 750m 5Y*, ask
 *"What is left before launch?"*. The answer must list the open tasks, and the *Evidence* panel shows
-the exact sources. Use the role selector (top right) to try `marketer`, `syndicate` and `admin`.
+the exact sources. Sign in as different users to see what each role can do. The Copilot keeps your conversations in the sidebar and understands follow-up questions.
 
 The status page (`/status`) shows `ok` for both Neo4j and Ollama when everything is wired up. If Ollama shows
 as unreachable from the containers, set the Windows environment variable `OLLAMA_HOST=0.0.0.0`,
