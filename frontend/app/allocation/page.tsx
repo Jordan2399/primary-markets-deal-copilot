@@ -1,14 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import DealSelect from "@/components/DealSelect";
 import { ErrorBox, Pill, fmtTime } from "@/components/ui";
-import { api, getRole } from "@/lib/client";
+import { ApiError, api, getRole } from "@/lib/client";
 import { fmtK, label } from "@/lib/format";
+import { dealFromUrl } from "@/lib/session-utils";
 import type { AllocationResult, Proposal, ProposalSummary } from "@/lib/types";
 
+/** Allocation: preview the engine's result, propose it, and approve it (a different person). */
 export default function AllocationPage() {
-  const [dealId, setDealId] = useState("");
+  // Start from ?deal=... in the address so other pages can link straight here.
+  const [dealId, setDealId] = useState(dealFromUrl);
   const [spread, setSpread] = useState<number | null>(null);
   const [preview, setPreview] = useState<AllocationResult | null>(null);
   const [proposals, setProposals] = useState<ProposalSummary[]>([]);
@@ -18,10 +22,12 @@ export default function AllocationPage() {
   const [role, setRole] = useState("viewer");
 
   useEffect(() => setRole(getRole()), []);
+  // These flags only decide what is shown; the API refuses the call for the wrong role anyway.
   const allowed = ["syndicate", "approver", "admin"].includes(role);
   const canPropose = ["syndicate", "admin"].includes(role);
   const canApprove = ["approver", "admin"].includes(role);
 
+  /** Load the saved proposals for a deal (skipped when no deal or the role may not see them). */
   const loadProposals = useCallback(async (id: string) => {
     if (!id || !allowed) return;
     try {
@@ -31,12 +37,14 @@ export default function AllocationPage() {
     }
   }, [allowed]);
 
+  /** Ask the engine for an allocation at a spread (null = let it pick the final spread). */
   const loadPreview = useCallback(async (id: string, bp: number | null) => {
     if (!id || !allowed) return;
     try {
       const result = await api.preview(id, bp ?? undefined);
       setPreview(result);
       setError(null);
+      // On the first load, adopt the spread the engine chose as the starting value.
       if (bp === null) setSpread(result.final_spread_bp);
     } catch (e) {
       setPreview(null);
@@ -44,6 +52,7 @@ export default function AllocationPage() {
     }
   }, [allowed]);
 
+  // Changing the deal resets the screen and reloads both the preview and the proposals.
   useEffect(() => {
     setSpread(null);
     setSelected(null);
@@ -51,6 +60,7 @@ export default function AllocationPage() {
     void loadProposals(dealId);
   }, [dealId, loadPreview, loadProposals]);
 
+  /** Save the current preview as a proposal waiting for approval. */
   async function propose() {
     setBusy(true);
     try {
@@ -94,7 +104,7 @@ export default function AllocationPage() {
       <h1>Allocation</h1>
       <p className="muted">The system proposes and explains; a person decides. The person who proposes cannot approve (four-eyes).</p>
       {!allowed ? (
-        <div className="alert">Allocation is for the syndicate, approver and admin roles. Switch the demo role at the top right.</div>
+        <div className="alert">Allocation is for the Syndicate, Approver and Administrator roles. Your account does not have access. Sign in with a different account to use this page.</div>
       ) : (
         <>
           <div className="row">
@@ -106,6 +116,15 @@ export default function AllocationPage() {
             {canPropose && <button className="primary" disabled={busy || !preview} onClick={propose}>Propose allocation</button>}
           </div>
           <ErrorBox error={error} />
+          {error instanceof ApiError && error.status === 409 && error.message.toLowerCase().includes("empty") && dealId && (
+            <p>
+              {canPropose ? (
+                <Link className="button primary" href={`/orderbook?deal=${encodeURIComponent(dealId)}`}>Go to the order book and simulate one</Link>
+              ) : (
+                <span className="muted">A syndicate user needs to simulate the order book first.</span>
+              )}
+            </p>
+          )}
 
           {shown && (
             <>

@@ -401,3 +401,103 @@ class FakeTermSheetRepository:
 
     async def get(self, doc_id: str) -> StoredTermSheet | None:
         return self.docs.get(doc_id)
+
+
+class FakeUserRepository:
+    def __init__(self, users: list[Any] | None = None) -> None:
+        self.users: dict[str, Any] = {u.username: u for u in (users or [])}
+
+    async def get(self, username: str) -> Any:
+        return self.users.get(username)
+
+    async def all_users(self) -> list[Any]:
+        return sorted(self.users.values(), key=lambda u: u.username)
+
+    async def create_if_missing(self, user: Any) -> bool:
+        if user.username in self.users:
+            return False
+        self.users[user.username] = user
+        return True
+
+
+class FakeConversationRepository:
+    """Same ownership rules as the Neo4j version: every lookup is by id AND owner."""
+
+    def __init__(self, events: list[AuditEvent] | None = None) -> None:
+        self.events: list[AuditEvent] = events if events is not None else []
+        self.threads: dict[str, dict[str, Any]] = {}
+        self.clock = 0
+
+    def _tick(self) -> str:
+        self.clock += 1
+        return f"2026-11-12T10:00:{self.clock:02d}+00:00"
+
+    def _summary(self, t: dict[str, Any]) -> Any:
+        from app.conversations.models import ConversationSummary
+
+        return ConversationSummary(
+            id=t["id"],
+            title=t["title"],
+            deal_id=t["deal_id"],
+            created_at=t["created_at"],
+            updated_at=t["updated_at"],
+            message_count=len(t["messages"]),
+        )
+
+    async def list_owned(self, owner: str, limit: int) -> list[Any]:
+        mine = [t for t in self.threads.values() if t["owner"] == owner]
+        mine.sort(key=lambda t: t["updated_at"], reverse=True)
+        return [self._summary(t) for t in mine[:limit]]
+
+    async def get(self, conversation_id: str, owner: str) -> Any:
+        from app.conversations.models import ConversationDetail
+
+        t = self.threads.get(conversation_id)
+        if t is None or t["owner"] != owner:
+            return None
+        return ConversationDetail(**self._summary(t).model_dump(), messages=list(t["messages"]))
+
+    async def recent_messages(self, conversation_id: str, owner: str, limit: int) -> list[Any]:
+        t = self.threads.get(conversation_id)
+        if t is None or t["owner"] != owner:
+            return []
+        return list(t["messages"])[-limit:]
+
+    async def append_turn(
+        self, conversation_id: str, owner: str, deal_id: str | None, title: str, messages: list[Any]
+    ) -> bool:
+        t = self.threads.get(conversation_id)
+        if t is None:
+            now = self._tick()
+            t = {
+                "id": conversation_id,
+                "owner": owner,
+                "title": title,
+                "deal_id": deal_id,
+                "created_at": now,
+                "updated_at": now,
+                "messages": [],
+            }
+            self.threads[conversation_id] = t
+        elif t["owner"] != owner:
+            return False
+        t["deal_id"] = deal_id
+        t["updated_at"] = self._tick()
+        for m in messages:
+            t["messages"].append(m.model_copy(update={"created_at": t["updated_at"]}))
+        return True
+
+    async def rename(self, conversation_id: str, owner: str, title: str) -> bool:
+        t = self.threads.get(conversation_id)
+        if t is None or t["owner"] != owner:
+            return False
+        t["title"] = title
+        return True
+
+    async def delete(self, conversation_id: str, owner: str, event: AuditEvent) -> bool:
+        t = self.threads.get(conversation_id)
+        if t is None or t["owner"] != owner:
+            return False
+        del self.threads[conversation_id]
+        self.events.append(event)
+        return True

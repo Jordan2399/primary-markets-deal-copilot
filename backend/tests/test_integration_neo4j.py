@@ -161,3 +161,74 @@ async def test_term_sheet_round_trip_against_neo4j(seeded: Neo4jClient) -> None:
     )
     report = await service.validate(doc.document_id, None, MARKETER)
     assert report.has_errors and report.has_mismatch
+
+
+async def test_demo_users_and_login_against_neo4j(seeded: Neo4jClient) -> None:
+    from app.auth.repository import Neo4jUserRepository
+    from app.auth.service import AuthService, LoginGuard
+    from app.core.config import Settings
+    from app.core.errors import UnauthorizedError
+
+    first = await seed_database(seeded, None, today=date.today(), demo_password="Test-Passw0rd!")
+    again = await seed_database(seeded, None, today=date.today(), demo_password="Other-Passw0rd!")
+    assert first.users_created == 5 and again.users_created == 0  # never overwritten
+
+    service = AuthService(
+        Neo4jUserRepository(seeded),
+        AuditService(Neo4jAuditRepository(seeded)),
+        Settings(auth_mode="jwt", jwt_secret="s" * 40),
+        LoginGuard(),
+    )
+    ok = await service.login("anna.syndicate", "Test-Passw0rd!")
+    assert ok.user.role.value == "syndicate"
+    with pytest.raises(UnauthorizedError):
+        await service.login(
+            "anna.syndicate", "Other-Passw0rd!"
+        )  # the second seed did not change it
+
+
+async def test_conversation_threads_against_neo4j(seeded: Neo4jClient) -> None:
+    import uuid
+
+    from app.conversations.repository import Neo4jConversationRepository
+    from app.conversations.service import ConversationService
+    from app.copilot.models import Source
+    from app.core.errors import NotFoundError
+
+    service = ConversationService(
+        Neo4jConversationRepository(seeded), AuditService(Neo4jAuditRepository(seeded))
+    )
+    cid = uuid.uuid4().hex
+    source = Source(id="S1", type="deal", ref="D-DEMO-001", title="Deal", snippet="x")
+    for question in ("What is left?", "and who owns those?"):
+        await service.save_turn(
+            SYNDICATE,
+            cid,
+            "D-DEMO-001",
+            question,
+            "Answer [S1]",
+            sources=[source],
+            cited=["S1"],
+            intent="deal",
+            audit_id=None,
+        )
+    detail = await service.get(SYNDICATE, cid)
+    assert [m.role for m in detail.messages] == ["user", "assistant", "user", "assistant"]
+    assert detail.message_count == 4 and detail.title == "What is left?"
+    assert detail.messages[1].sources[0].ref == "D-DEMO-001" and detail.messages[1].cited == ["S1"]
+
+    _id, history, is_new = await service.context_for(SYNDICATE, cid)
+    assert not is_new and [h.content for h in history][-2] == "and who owns those?"
+    assert len(await service.list_mine(SYNDICATE)) == 1
+
+    # another user: nothing visible, nothing writable
+    with pytest.raises(NotFoundError):
+        await service.get(MARKETER, cid)
+    await service.save_turn(
+        MARKETER, cid, None, "hijack", "x", sources=[], cited=[], intent="deal", audit_id=None
+    )
+    assert (await service.get(SYNDICATE, cid)).message_count == 4
+
+    await service.delete(SYNDICATE, cid)
+    with pytest.raises(NotFoundError):
+        await service.get(SYNDICATE, cid)

@@ -11,6 +11,10 @@ from app.allocation.repository import Neo4jAllocationRepository
 from app.allocation.service import AllocationService
 from app.audit.repository import Neo4jAuditRepository
 from app.audit.service import AuditService
+from app.auth.repository import Neo4jUserRepository
+from app.auth.service import AuthService
+from app.conversations.repository import Neo4jConversationRepository
+from app.conversations.service import ConversationService
 from app.copilot.service import CopilotService
 from app.core.config import Settings, get_settings
 from app.db.neo4j import Neo4jClient
@@ -57,13 +61,30 @@ def get_document_service(db: Db, llm: Llm, settings: Config) -> DocumentService:
     )
 
 
+# Day 2b wiring: build each service with its Neo4j repository. Tests replace these functions
+# through dependency_overrides to use in-memory fakes instead.
+def get_auth_service(
+    db: Db, audit: Annotated[AuditService, Depends(get_audit_service)], settings: Config
+) -> AuthService:
+    # Settings carry the JWT secret and token lifetime used when issuing tokens.
+    return AuthService(Neo4jUserRepository(db), audit, settings)
+
+
+def get_conversation_service(
+    db: Db, audit: Annotated[AuditService, Depends(get_audit_service)]
+) -> ConversationService:
+    return ConversationService(Neo4jConversationRepository(db), audit)
+
+
 def get_copilot_service(
     deals: Annotated[DealService, Depends(get_deal_service)],
     docs: Annotated[DocumentService, Depends(get_document_service)],
     audit: Annotated[AuditService, Depends(get_audit_service)],
+    threads: Annotated[ConversationService, Depends(get_conversation_service)],
     llm: Llm,
 ) -> CopilotService:
-    return CopilotService(deals, docs, llm, audit)
+    # `threads` lets the Copilot load history and save each turn.
+    return CopilotService(deals, docs, llm, audit, threads)
 
 
 def get_orderbook_service(

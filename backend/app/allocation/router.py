@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends
 from app.allocation.models import AllocationResult, Proposal, ProposalSummary, ProposeRequest
 from app.allocation.service import AllocationService
 from app.core.errors import NotFoundError
-from app.core.security import CurrentUser, Role, require_roles
+from app.core.security import CurrentUser, Role, get_current_user, require_roles
 from app.deps import get_allocation_service
 
-router = APIRouter(tags=["allocation"])
+router = APIRouter(tags=["allocation"], dependencies=[Depends(get_current_user)])
 
 Service = Annotated[AllocationService, Depends(get_allocation_service)]
 CanRead = Annotated[CurrentUser, Depends(require_roles(Role.syndicate, Role.approver))]

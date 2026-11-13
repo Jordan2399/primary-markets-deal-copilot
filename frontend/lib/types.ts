@@ -84,9 +84,18 @@ export type Source = {
 };
 
 export type CopilotEvent =
-  | { event: "meta"; data: { intent: string; model: string; sources: Source[] } }
+  | {
+      event: "meta";
+      data: {
+        intent: string;
+        model: string;
+        sources: Source[];
+        conversation_id: string | null;
+        understood_as: string | null;
+      };
+    }
   | { event: "token"; data: { text: string } }
-  | { event: "done"; data: { cited: string[]; audit_id: string | null } }
+  | { event: "done"; data: { cited: string[]; audit_id: string | null; conversation_id: string | null } }
   | { event: "error"; data: { code: string; message: string; retry: boolean } };
 
 /* ---- Day 2: order book, allocation, term sheets ---- */
@@ -214,3 +223,28 @@ export type ValidationReport = {
   has_mismatch: boolean;
 };
 export type Sample = { filename: string; text: string; variant: string };
+
+/* ---- Sign-in and saved conversations ---- */
+
+export type UserInfo = { username: string; display_name: string; role: Role; active: boolean };
+export type DemoAccount = { username: string; display_name: string; role: Role };
+
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  deal_id: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+};
+export type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+  sources: Source[];
+  cited: string[];
+  intent: string | null;
+  audit_id: string | null;
+};
+export type ConversationDetail = ConversationSummary & { messages: StoredMessage[] };

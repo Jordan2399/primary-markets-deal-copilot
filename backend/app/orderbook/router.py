@@ -4,12 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.core.security import CurrentUser, Role, require_roles
+from app.core.security import CurrentUser, Role, get_current_user, require_roles
 from app.deps import get_orderbook_service
 from app.orderbook.models import Anomaly, OrderBook, SimulateRequest
 from app.orderbook.service import OrderBookService
 
-router = APIRouter(tags=["orderbook"])
+router = APIRouter(tags=["orderbook"], dependencies=[Depends(get_current_user)])
 
 Service = Annotated[OrderBookService, Depends(get_orderbook_service)]
 CanRead = Annotated[CurrentUser, Depends(require_roles(Role.syndicate, Role.approver))]
