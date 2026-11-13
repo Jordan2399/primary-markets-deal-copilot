@@ -8,9 +8,9 @@ export default async function Home() {
 
   return (
     <main className="container">
-      <h1>Primary Markets Deal Copilot</h1>
+      <h1>System status</h1>
       <p className="muted">
-        All data in this project is synthetic.
+        Live health of the services behind this application. All data in this project is synthetic.
       </p>
 
       <section className="card">
@@ -28,12 +28,13 @@ export default async function Home() {
                 (v{health.version}, {health.environment}, LLM provider: {health.llm_provider})
               </span>
             </p>
-            <ul>
+            <ul className="statuslist">
               {Object.entries(health.dependencies).map(([name, dep]) => (
                 <li key={name}>
-                  <strong>{name}</strong>:{" "}
+                  <span className={`dot ${dep.ok ? "ok" : "down"}`} aria-hidden="true" />
+                  <strong>{name}</strong>
                   <span className={dep.ok ? "good" : "bad"}>{dep.ok ? "ok" : "down"}</span>
-                  <span className="muted"> - {dep.detail}</span>
+                  <span className="muted small">{dep.detail}</span>
                 </li>
               ))}
             </ul>

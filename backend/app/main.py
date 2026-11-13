@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.allocation.router import router as allocation_router
 from app.audit.router import router as audit_router
+from app.auth.router import router as auth_router
+from app.conversations.router import router as conversations_router
 from app.copilot.router import router as copilot_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
@@ -47,6 +49,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # Fail at startup (not at the first request) if production has unsafe settings.
+    settings.check_safe_to_run()
     configure_logging(settings.log_level)
 
     app = FastAPI(
@@ -66,6 +70,9 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(health_router, prefix="/api/v1")
+    # auth and conversations are open to any signed-in user; the other routers add role checks.
+    app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(conversations_router, prefix="/api/v1")
     app.include_router(deals_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
     app.include_router(copilot_router, prefix="/api/v1")

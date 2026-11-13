@@ -15,6 +15,9 @@ from neo4j import AsyncManagedTransaction
 
 from app.audit.models import AuditEvent, build_event
 from app.audit.repository import write_in_tx
+from app.auth.models import DEMO_USERS, User
+from app.auth.repository import Neo4jUserRepository
+from app.core.passwords import hash_password
 from app.core.security import CurrentUser, Role
 from app.db.neo4j import Neo4jClient
 from app.db.schema import ensure_schema
@@ -66,6 +69,7 @@ class SeedReport:
     issuers: int = 0
     deals_created: int = 0
     deals_skipped: int = 0
+    users_created: int = 0  # how many demo users this run added (0 on a repeat run)
     investors: int = 0
     books_created: int = 0
     playbook_pages: int = 0
@@ -89,6 +93,18 @@ async def _create_deal(
         return True
 
     return await db.execute_write(work)
+
+
+async def _seed_users(db: Neo4jClient, password: str, report: SeedReport) -> None:
+    """Create the demo users. An existing user is never changed, so a password you set stays."""
+    repo = Neo4jUserRepository(db)
+    # One hash is reused for all demo users: they share one development password.
+    hashed = hash_password(password)
+    for username, display_name, role in DEMO_USERS:
+        user = User(username=username, display_name=display_name, role=role, password_hash=hashed)
+        # create_if_missing returns True only when the user did not exist before.
+        if await repo.create_if_missing(user):
+            report.users_created += 1
 
 
 BOOK_STAGES = ("book_building", "pricing", "allocation", "booking")
@@ -137,6 +153,7 @@ async def seed_database(
     today: date,
     embed_dimensions: int = 768,
     reset: bool = False,
+    demo_password: str | None = None,  # None = do not create demo users
 ) -> SeedReport:
     report = SeedReport()
 
@@ -207,6 +224,9 @@ async def seed_database(
             raise RuntimeError(f"Could not create {spec.deal_id}: issuer or stage missing.")
         report.deals_created += 1
 
+    # Users are seeded last and only when a password was provided by the caller.
+    if demo_password:
+        await _seed_users(db, demo_password, report)
     await _seed_books(db, today, report)
 
     if docs is not None:

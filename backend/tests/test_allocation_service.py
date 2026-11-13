@@ -1,5 +1,7 @@
 """Propose, explain and approve, including the four-eyes rule, through the API."""
 
+import pytest
+
 from app.llm.fake import FakeLLM
 from tests.conftest import Env, build_env
 from tests.fakes import add_deal
@@ -167,3 +169,46 @@ async def test_propose_needs_a_book() -> None:
         "/api/v1/deals/D-DEMO-001/allocation/propose", json={}, headers=SYNDICATE
     )
     assert response.status_code == 409 and "empty" in response.json()["error"]["message"]
+
+
+GOOD = (
+    "The book is oversubscribed and the deal is fully allocated. Band 1 received everything it "
+    "asked for, and later bands were scaled back so the total matches the deal size."
+)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{}",
+        "",
+        "ok",
+        '{"explanation": "The book is oversubscribed and fully allocated to bands one and two."}',
+        "```The book is oversubscribed and fully allocated to bands one and two, in order.```",
+        GOOD + " " + "x" * 1500,
+        GOOD + " Band 1 received 999,999k.",  # an amount the engine never produced
+    ],
+)
+def test_unsafe_explanations_are_rejected(text: str) -> None:
+    from app.allocation.service import acceptable_explanation
+
+    facts = {"deal_size_k": 750000, "bands": [{"allocated_k": 662500}], "final_spread_bp": 110}
+    assert acceptable_explanation(text, facts) is False
+
+
+def test_good_explanations_and_the_engines_own_numbers_are_accepted() -> None:
+    from app.allocation.service import acceptable_explanation
+
+    facts = {"deal_size_k": 750000, "bands": [{"allocated_k": 662500}], "final_spread_bp": 110}
+    assert acceptable_explanation(GOOD, facts)
+    assert acceptable_explanation(GOOD + " Band 1 got 662,500k of 750,000k at 110bp.", facts)
+
+
+async def test_a_junk_model_reply_becomes_the_template() -> None:
+    env = build_env(FakeLLM(chat_responses=["{}"]))
+    await booked(env)
+    proposal = env.client.post(
+        "/api/v1/deals/D-DEMO-001/allocation/propose", json={}, headers=SYNDICATE
+    ).json()
+    assert proposal["explanation_source"] == "template"
+    assert proposal["explanation"] != "{}" and "eligible demand" in proposal["explanation"]

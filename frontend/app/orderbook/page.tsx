@@ -6,21 +6,25 @@ import DealSelect from "@/components/DealSelect";
 import { ErrorBox, Pill, fmtTime } from "@/components/ui";
 import { api, getRole } from "@/lib/client";
 import { fmtClock, fmtK, label } from "@/lib/format";
+import { dealFromUrl } from "@/lib/session-utils";
 import type { OrderBook } from "@/lib/types";
 
+/** Order book: demand over time, by spread level and by investor type, with a simulator. */
 export default function OrderBookPage() {
-  const [dealId, setDealId] = useState("");
+  const [dealId, setDealId] = useState(dealFromUrl);
   const [book, setBook] = useState<OrderBook | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [seed, setSeed] = useState(1);
-  const [cover, setCover] = useState(2.8);
+  const [cover, setCover] = useState(2.8); // target cover: demand divided by deal size
   const [role, setRole] = useState("viewer");
 
   useEffect(() => setRole(getRole()), []);
+  // Role flags decide what is shown only; the API enforces access (403 for other roles).
   const allowed = ["syndicate", "approver", "admin"].includes(role);
   const canSimulate = ["syndicate", "admin"].includes(role);
 
+  /** Fetch the order book for a deal. */
   const load = useCallback(async (id: string) => {
     if (!id || !allowed) return;
     try {
@@ -54,7 +58,7 @@ export default function OrderBookPage() {
       <h1>Order book</h1>
       <p className="muted">Demand, price tension and flagged orders for deals from Book building onwards. All orders are synthetic.</p>
       {!allowed ? (
-        <div className="alert">The order book is for the syndicate, approver and admin roles. Switch the demo role at the top right.</div>
+        <div className="alert">The order book is for the Syndicate, Approver and Administrator roles. Your account does not have access. Sign in with a different account to use this page.</div>
       ) : (
         <>
           <div className="row">
@@ -136,6 +140,7 @@ export default function OrderBookPage() {
   );
 }
 
+/** One small labelled figure with an optional note underneath. */
 function Stat({ name, value, note }: { name: string; value: string; note?: string }) {
   return (
     <div className="stat">

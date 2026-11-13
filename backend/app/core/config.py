@@ -1,12 +1,15 @@
 """Application settings, read from environment variables (see .env.dev.example)."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """All settings. Each field can be overridden by an environment variable of the same name."""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = Field(default="development", description="development or production")
@@ -38,14 +41,41 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the API directly (the Next.js proxy does not need this).
     cors_origins: str = "http://localhost:3000"
 
+    # Authentication. "jwt" = sign in with a username and password and send a signed token.
+    # "demo" = trust the X-Demo-Role / X-Demo-User headers; development and tests only.
+    auth_mode: Literal["jwt", "demo"] = "jwt"
+    jwt_secret: str = "dev-only-secret-change-me-dev-only-secret-0000"
+    jwt_ttl_minutes: int = 480  # token lifetime: 8 hours, one working day
+    # Password given to the seeded demo users (development only; see the seed).
+    demo_user_password: str = ""
+
     # Seconds to wait for dependency checks.
     health_timeout_seconds: float = 3.0
 
+    def check_safe_to_run(self) -> None:
+        """Refuse to start a production deployment with demo-grade security settings."""
+        # Development may use the defaults; only production is checked.
+        if self.app_env != "production":
+            return
+        problems = []
+        if self.auth_mode != "jwt":
+            problems.append("AUTH_MODE must be 'jwt' in production")
+        # A short or default secret would let anyone forge a token with any role.
+        if len(self.jwt_secret) < 32 or self.jwt_secret.startswith("dev-only"):
+            problems.append("JWT_SECRET must be a random value of at least 32 characters")
+        if self.neo4j_password.startswith("change-me"):
+            problems.append("NEO4J_PASSWORD must be changed")
+        # Report all problems at once so they can be fixed in one go.
+        if problems:
+            raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+
     @property
     def cors_origin_list(self) -> list[str]:
+        """CORS_ORIGINS split on commas, trimmed, empty entries dropped."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """One shared Settings object (cached). Tests override this dependency."""
     return Settings()

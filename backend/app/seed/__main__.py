@@ -5,6 +5,7 @@ import asyncio
 import sys
 from datetime import date
 
+from app.auth.models import DEFAULT_DEMO_PASSWORD
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.neo4j import Neo4jClient
@@ -44,6 +45,12 @@ async def main(argv: list[str]) -> int:
         print("Use --force only if you are sure.")
         return 2
 
+    # In development the demo users get DEMO_USER_PASSWORD, or a documented default. Elsewhere
+    # they are only created when a password is set explicitly.
+    demo_password: str | None = settings.demo_user_password or (
+        DEFAULT_DEMO_PASSWORD if settings.app_env == "development" else None
+    )
+
     db = Neo4jClient(
         settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password, settings.neo4j_database
     )
@@ -69,6 +76,7 @@ async def main(argv: list[str]) -> int:
             today=date.today(),
             embed_dimensions=settings.embed_dimensions,
             reset=args.reset,
+            demo_password=demo_password,
         )
     finally:
         if llm is not None:
@@ -78,6 +86,8 @@ async def main(argv: list[str]) -> int:
     print("Seed finished:")
     for key, value in report.__dict__.items():
         print(f"  {key}: {value}")
+    if report.users_created:
+        print("Demo users were created. Sign in with a username from the login page.")
     if docs is None:
         print("Playbook was skipped, so the Copilot cannot answer process questions yet.")
     return 0

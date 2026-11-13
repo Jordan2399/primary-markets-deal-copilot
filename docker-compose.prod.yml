@@ -9,6 +9,9 @@ services:
 
   api:
     restart: unless-stopped
+    environment:
+      # Production has no default: the stack will not start without a real secret.
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
     ports:
       - "8100:8000"
 

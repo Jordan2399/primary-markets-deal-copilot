@@ -10,10 +10,15 @@ from fastapi.testclient import TestClient
 
 from app.allocation.service import AllocationService
 from app.audit.service import AuditService
+from app.auth.service import AuthService, LoginGuard
+from app.conversations.service import ConversationService
+from app.core.config import Settings, get_settings
 from app.deals.service import DealService
 from app.deps import (
     get_allocation_service,
     get_audit_service,
+    get_auth_service,
+    get_conversation_service,
     get_deal_service,
     get_document_service,
     get_llm,
@@ -28,9 +33,11 @@ from app.termsheets.service import TermSheetService
 from tests.fakes import (
     FakeAllocationRepository,
     FakeAuditRepository,
+    FakeConversationRepository,
     FakeDealRepository,
     FakeOrderBookRepository,
     FakeTermSheetRepository,
+    FakeUserRepository,
     InMemoryDocumentRepository,
 )
 
@@ -47,9 +54,17 @@ class Env:
     book_repo: FakeOrderBookRepository
     alloc_repo: FakeAllocationRepository
     ts_repo: FakeTermSheetRepository
+    users: FakeUserRepository
+    threads: FakeConversationRepository
+    settings: Settings
 
 
-def build_env(llm: FakeLLM) -> Env:
+JWT_SECRET = "test-secret-test-secret-test-secret-0123456789"
+
+
+def build_env(llm: FakeLLM, auth_mode: str = "demo") -> Env:
+    """`demo` trusts the X-Demo headers (used by most tests); `jwt` needs a real login."""
+    settings = Settings(auth_mode=auth_mode, jwt_secret=JWT_SECRET)  # type: ignore[arg-type]
     repo = FakeDealRepository()
     docs_repo = InMemoryDocumentRepository()
     audit = FakeAuditRepository(repo.events)
@@ -59,7 +74,11 @@ def build_env(llm: FakeLLM) -> Env:
     book_repo = FakeOrderBookRepository(repo.events)
     alloc_repo = FakeAllocationRepository(repo.events)
     ts_repo = FakeTermSheetRepository(repo.events)
+    users = FakeUserRepository()
+    threads = FakeConversationRepository(repo.events)
+    guard = LoginGuard()
     app = create_app()
+    app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_deal_service] = lambda: DealService(repo)
     app.dependency_overrides[get_audit_service] = lambda: AuditService(audit)
     app.dependency_overrides[get_document_service] = lambda: docs
@@ -71,6 +90,11 @@ def build_env(llm: FakeLLM) -> Env:
     def book() -> OrderBookService:
         return OrderBookService(book_repo, deals())
 
+    thread_service = ConversationService(threads, AuditService(audit))
+    app.dependency_overrides[get_conversation_service] = lambda: thread_service
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(
+        users, AuditService(audit), settings, guard
+    )
     app.dependency_overrides[get_orderbook_service] = book
     app.dependency_overrides[get_allocation_service] = lambda: AllocationService(
         alloc_repo, book(), llm
@@ -78,7 +102,19 @@ def build_env(llm: FakeLLM) -> Env:
     app.dependency_overrides[get_termsheet_service] = lambda: TermSheetService(
         ts_repo, deals(), llm, AuditService(audit)
     )
-    return Env(app, TestClient(app), repo, docs_repo, llm, book_repo, alloc_repo, ts_repo)
+    return Env(
+        app,
+        TestClient(app),
+        repo,
+        docs_repo,
+        llm,
+        book_repo,
+        alloc_repo,
+        ts_repo,
+        users,
+        threads,
+        settings,
+    )
 
 
 @pytest.fixture
