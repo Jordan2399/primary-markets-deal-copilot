@@ -7,6 +7,8 @@ from typing import Annotated, cast
 
 from fastapi import Depends, Request
 
+from app.allocation.repository import Neo4jAllocationRepository
+from app.allocation.service import AllocationService
 from app.audit.repository import Neo4jAuditRepository
 from app.audit.service import AuditService
 from app.copilot.service import CopilotService
@@ -17,6 +19,10 @@ from app.deals.service import DealService
 from app.documents.repository import Neo4jDocumentRepository
 from app.documents.service import DocumentService
 from app.llm.base import LLMProvider
+from app.orderbook.repository import Neo4jOrderBookRepository
+from app.orderbook.service import OrderBookService
+from app.termsheets.repository import Neo4jTermSheetRepository
+from app.termsheets.service import TermSheetService
 
 
 def get_db(request: Request) -> Neo4jClient:
@@ -58,3 +64,24 @@ def get_copilot_service(
     llm: Llm,
 ) -> CopilotService:
     return CopilotService(deals, docs, llm, audit)
+
+
+def get_orderbook_service(
+    db: Db, deals: Annotated[DealService, Depends(get_deal_service)]
+) -> OrderBookService:
+    return OrderBookService(Neo4jOrderBookRepository(db), deals)
+
+
+def get_allocation_service(
+    db: Db, book: Annotated[OrderBookService, Depends(get_orderbook_service)], llm: Llm
+) -> AllocationService:
+    return AllocationService(Neo4jAllocationRepository(db), book, llm)
+
+
+def get_termsheet_service(
+    db: Db,
+    deals: Annotated[DealService, Depends(get_deal_service)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    llm: Llm,
+) -> TermSheetService:
+    return TermSheetService(Neo4jTermSheetRepository(db), deals, llm, audit)

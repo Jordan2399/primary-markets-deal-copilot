@@ -13,7 +13,7 @@ extraction and validation, and an investor appetite graph. It runs locally with 
 | --- | --- | --- |
 | 0 | Repo, Docker Compose (dev and prod), FastAPI health endpoint, Next.js status page, CI | **done** |
 | 1 | Neo4j schema, seed data, deals and audit modules, LLM client, Lifecycle Copilot with sources, pipeline / workspace / Copilot / audit pages | **done** (see [docs/day-1-guide.md](docs/day-1-guide.md)) |
-| 2 | Order book, allocation engine, term sheet extraction | planned |
+| 2 | Order book, allocation engine with four-eyes approval, term sheet extraction and validation | **done** (see [docs/day-2-guide.md](docs/day-2-guide.md)) |
 | 3 | Investor graph, evaluation, polish, demo | planned |
 
 ## Architecture
@@ -65,10 +65,12 @@ Ollama runs natively on the host (not in Docker) so it can use the GPU. Containe
    (development only).
 
 5. Open:
-   - Frontend: http://localhost:3000 (pipeline), `/copilot`, `/audit`, `/status`
+   - Frontend: http://localhost:3000 (pipeline), `/orderbook`, `/allocation`, `/termsheets`, `/copilot`, `/audit`, `/status`
    - API docs: http://localhost:8000/docs
    - API health: http://localhost:8000/api/v1/health
    - Neo4j Browser: http://localhost:7474 (user `neo4j`, password from `.env.dev`)
+
+Day 2: open **Allocation** with `D-2026-009` and check the sum equals the deal size; open **Term sheets**, load the sample with errors and look for the red mismatch (details in the Day 2 guide).
 
 Try the Day 1 gate: open **Copilot**, choose *Nordvik EUR 750m 5Y*, ask
 *"What is left before launch?"*. The answer must list the open tasks, and the *Evidence* panel shows
@@ -117,7 +119,7 @@ Backend:
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints.txt
 $env:NEO4J_URI = "bolt://localhost:7687"; $env:OLLAMA_BASE_URL = "http://localhost:11434"
 uvicorn app.main:app --reload
 ```

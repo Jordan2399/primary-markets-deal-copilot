@@ -1,4 +1,3 @@
-
 # Day 1 guide: what was built, how it works, how to continue
 
 Day 1 turns the Day 0 skeleton into a working product: a deal pipeline with task checklists, an audit

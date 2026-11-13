@@ -2,7 +2,8 @@
 
 import { SseParser } from "./sse";
 import type {
-  AuditEvent, CopilotEvent, CreateDealInput, DealDetail, DealSummary, Issuer, Role, Stage, Task, TaskStatus,
+  AllocationResult, AuditEvent, CopilotEvent, CreateDealInput, DealDetail, DealSummary, Extraction, Issuer,
+  OrderBook, Proposal, ProposalSummary, Role, Sample, SimulateInput, Stage, Task, TaskStatus, ValidationReport,
 } from "./types";
 
 const ROLE_KEY = "dealcopilot.role";
@@ -67,6 +68,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function form<T>(path: string, body: FormData): Promise<T> {
+  // No Content-Type header: the browser adds the multipart boundary itself.
+  const response = await fetch(`/api${path}`, { method: "POST", body, cache: "no-store", headers: identityHeaders() });
+  if (!response.ok) throw await toError(response);
+  return (await response.json()) as T;
+}
+
 export const api = {
   stages: () => request<Stage[]>("/stages"),
   issuers: () => request<Issuer[]>("/issuers"),
@@ -78,6 +86,31 @@ export const api = {
   updateTask: (taskId: string, status: TaskStatus) =>
     request<Task>(`/tasks/${encodeURIComponent(taskId)}`, { method: "PATCH", body: JSON.stringify({ status }) }),
   advance: (id: string) => request<DealDetail>(`/deals/${encodeURIComponent(id)}/advance`, { method: "POST" }),
+  orderbook: (dealId: string) => request<OrderBook>(`/deals/${encodeURIComponent(dealId)}/orderbook`),
+  simulate: (dealId: string, input: SimulateInput) =>
+    request<OrderBook>(`/deals/${encodeURIComponent(dealId)}/orderbook/simulate`, { method: "POST", body: JSON.stringify(input) }),
+  preview: (dealId: string, spread?: number) =>
+    request<AllocationResult>(`/deals/${encodeURIComponent(dealId)}/allocation/preview${spread != null ? `?final_spread_bp=${spread}` : ""}`),
+  proposals: (dealId: string) => request<ProposalSummary[]>(`/deals/${encodeURIComponent(dealId)}/allocation`),
+  proposal: (id: string) => request<Proposal>(`/allocation/${encodeURIComponent(id)}`),
+  propose: (dealId: string, spread: number | null) =>
+    request<Proposal>(`/deals/${encodeURIComponent(dealId)}/allocation/propose`, {
+      method: "POST",
+      body: JSON.stringify({ final_spread_bp: spread }),
+    }),
+  approve: (dealId: string, proposalId: string) =>
+    request<Proposal>(`/deals/${encodeURIComponent(dealId)}/allocation/approve?proposal_id=${encodeURIComponent(proposalId)}`, { method: "POST" }),
+  sample: (dealId: string, variant: "good" | "bad") =>
+    request<Sample>(`/deals/${encodeURIComponent(dealId)}/termsheet-sample?variant=${variant}`),
+  extract: (data: { file?: File | null; text?: string; dealId?: string }) => {
+    const body = new FormData();
+    if (data.file) body.append("file", data.file);
+    if (data.text) body.append("text", data.text);
+    if (data.dealId) body.append("deal_id", data.dealId);
+    return form<Extraction>("/documents/extract", body);
+  },
+  validate: (docId: string, dealId?: string) =>
+    request<ValidationReport>(`/documents/${encodeURIComponent(docId)}/validate${dealId ? `?deal_id=${encodeURIComponent(dealId)}` : ""}`, { method: "POST" }),
   audit: (action?: string) => request<AuditEvent[]>(`/audit?limit=200${action ? `&action=${encodeURIComponent(action)}` : ""}`),
 };
 

@@ -27,7 +27,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const upstream = await fetch(target, {
       method: request.method,
       headers,
-      body: hasBody ? await request.text() : undefined,
+      body: hasBody ? await request.arrayBuffer() : undefined,
       cache: "no-store",
       signal: AbortSignal.timeout(180_000),
     });

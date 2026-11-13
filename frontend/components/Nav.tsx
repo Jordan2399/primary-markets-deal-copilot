@@ -8,6 +8,9 @@ import type { Role } from "@/lib/types";
 
 const LINKS = [
   { href: "/", label: "Pipeline" },
+  { href: "/orderbook", label: "Order book" },
+  { href: "/allocation", label: "Allocation" },
+  { href: "/termsheets", label: "Term sheets" },
   { href: "/copilot", label: "Copilot" },
   { href: "/audit", label: "Audit" },
   { href: "/status", label: "Status" },
