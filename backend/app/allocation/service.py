@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -41,6 +42,36 @@ def template_explanation(result: AllocationResult) -> str:
             f"{excluded} orders were not eligible (anomaly rules or a limit above the final spread)."
         )
     return " ".join(parts)
+
+
+# Matches numbers like 750, 1,250,000 or 3.5 (digits with optional thousands commas and decimals).
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _numbers(text: str) -> set[float]:
+    """All numbers found in a text, as floats, so 1,250 and 1250.0 compare equal."""
+    found: set[float] = set()
+    for raw in _NUMBER.findall(text):
+        try:
+            found.add(float(raw.replace(",", "").rstrip(".")))
+        except ValueError:
+            continue
+    return found
+
+
+def acceptable_explanation(text: str, facts: dict[str, object]) -> bool:
+    """Is the model's wording safe to show? It must read like prose and invent no large figure.
+
+    Rejected: empty or tiny replies, JSON or code blocks, very long replies, and any amount
+    (a number of 100 or more) that is not one of the engine's own numbers. A rejected reply is
+    replaced by the template, so a weak model can make the text plainer but never wrong.
+    """
+    # Too short, too long, or starting like JSON/code: not prose.
+    if not 40 <= len(text) <= 1500 or text[0] in "{[`":
+        return False
+    # Every number the engine computed is allowed; small numbers (< 100) are ignored, e.g. 'two'.
+    allowed = _numbers(json.dumps(facts))
+    return all(n in allowed for n in _numbers(text) if n >= 100)
 
 
 def _facts(result: AllocationResult) -> dict[str, object]:
@@ -109,7 +140,8 @@ class AllocationService:
             text = (await self._llm.chat(messages, temperature=0.2)).strip()
         except LLMError:
             return template_explanation(result), "template", digest
-        if not text:
+        # Fall back to the template when the wording is empty, odd-looking or invents figures.
+        if not acceptable_explanation(text, _facts(result)):
             return template_explanation(result), "template", digest
         return text, self._llm.model, digest
 

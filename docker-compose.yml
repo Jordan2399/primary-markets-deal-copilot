@@ -15,6 +15,10 @@ x-api-env: &api-env
   LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b-instruct}
   LLM_EMBED_MODEL: ${LLM_EMBED_MODEL:-nomic-embed-text}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  AUTH_MODE: ${AUTH_MODE:-jwt}
+  JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-0000}
+  JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-480}
+  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
 
 services:
   neo4j:

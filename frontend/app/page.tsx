@@ -6,12 +6,14 @@ import { ErrorBox, Pill, Progress, fmtDate } from "@/components/ui";
 import { api, getRole } from "@/lib/client";
 import type { CreateDealInput, DealSummary, Issuer, Stage } from "@/lib/types";
 
+/** A date `days` from today as YYYY-MM-DD (used for the default dates of a new deal). */
 function tomorrowPlus(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
+/** The pipeline page: KPI tiles on top, then one column per stage with its deals. */
 export default function Pipeline() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [deals, setDeals] = useState<DealSummary[]>([]);
@@ -19,8 +21,10 @@ export default function Pipeline() {
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const canCreate = typeof window !== "undefined" && ["marketer", "admin"].includes(getRole());
+  // UX only: shows the New deal button for roles that may create deals. The API enforces it too.
+  const canCreate = ["marketer", "admin"].includes(getRole());
 
+  /** Fetch stages, deals and issuers in parallel, then show them. */
   const load = useCallback(async () => {
     try {
       const [s, d, i] = await Promise.all([api.stages(), api.deals(), api.issuers()]);
@@ -53,12 +57,15 @@ export default function Pipeline() {
         )}
       </div>
       <ErrorBox error={error} />
+      {/* KPI tiles are computed from the deals already loaded: no extra API call. */}
+      {!loading && deals.length > 0 && <Kpis deals={deals} />}
       {showForm && <NewDealForm issuers={issuers} onCreated={() => { setShowForm(false); void load(); }} />}
       {loading ? (
         <p className="muted">Loading...</p>
       ) : (
         <div className="board">
           {stages.map((stage) => {
+            // The deals that belong in this stage's column.
             const inStage = deals.filter((d) => d.stage_code === stage.code);
             return (
               <section key={stage.code} className="column" aria-label={stage.name}>
@@ -89,6 +96,29 @@ export default function Pipeline() {
         </div>
       )}
     </main>
+  );
+}
+
+/** Four summary tiles for the active (not completed) deals. */
+function Kpis({ deals }: { deals: DealSummary[] }) {
+  const active = deals.filter((d) => !d.is_complete);
+  // Total blocking tasks still open across all active deals.
+  const blocking = active.reduce((sum, d) => sum + d.blockers_open, 0);
+  // Deals launching within the next 14 days (launch date today or later, at most 14 days away).
+  const soon = active.filter((d) => {
+    if (!d.launch_date) return false;
+    const days = (new Date(`${d.launch_date}T00:00:00`).getTime() - Date.now()) / 86_400_000;
+    return days >= 0 && days <= 14;
+  }).length;
+  // Stage position 5 and up = book building onwards.
+  const inMarket = active.filter((d) => d.stage_position >= 5).length;
+  return (
+    <section className="stats" aria-label="Pipeline summary">
+      <div className="stat"><div className="muted small">Active deals</div><div className="stat-value">{active.length}</div></div>
+      <div className="stat"><div className="muted small">In market or beyond</div><div className="stat-value">{inMarket}</div><div className="muted small">book building to booking</div></div>
+      <div className="stat"><div className="muted small">Launching in 14 days</div><div className="stat-value">{soon}</div></div>
+      <div className="stat"><div className="muted small">Blocking tasks open</div><div className={`stat-value${blocking > 0 ? " warn" : ""}`}>{blocking}</div><div className="muted small">in current stages</div></div>
+    </section>
   );
 }
 

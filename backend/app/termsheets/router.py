@@ -11,7 +11,7 @@ from app.termsheets.models import ExtractionOut, SampleOut, ValidationReport
 from app.termsheets.parser import MAX_BYTES
 from app.termsheets.service import TermSheetService
 
-router = APIRouter(tags=["documents"])
+router = APIRouter(tags=["documents"], dependencies=[Depends(get_current_user)])
 
 Service = Annotated[TermSheetService, Depends(get_termsheet_service)]
 User = Annotated[CurrentUser, Depends(get_current_user)]

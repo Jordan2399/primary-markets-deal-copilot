@@ -2,33 +2,28 @@
 
 import { SseParser } from "./sse";
 import type {
-  AllocationResult, AuditEvent, CopilotEvent, CreateDealInput, DealDetail, DealSummary, Extraction, Issuer,
-  OrderBook, Proposal, ProposalSummary, Role, Sample, SimulateInput, Stage, Task, TaskStatus, ValidationReport,
+  AllocationResult, AuditEvent, ConversationDetail, ConversationSummary, CopilotEvent, CreateDealInput, DealDetail,
+  DealSummary, DemoAccount, Extraction, Issuer, OrderBook, Proposal, ProposalSummary, Role, Sample, SimulateInput,
+  Stage, Task, TaskStatus, UserInfo, ValidationReport,
 } from "./types";
-
-const ROLE_KEY = "dealcopilot.role";
-const USER_KEY = "dealcopilot.user";
 
 export const ROLES: Role[] = ["viewer", "marketer", "syndicate", "approver", "admin"];
 
-export function getRole(): Role {
-  try {
-    const stored = window.localStorage.getItem(ROLE_KEY) as Role | null;
-    if (stored && ROLES.includes(stored)) return stored;
-  } catch {
-    /* storage can be blocked */
-  }
-  return "viewer";
+// The signed-in user. It is set once by the session provider (see lib/session.tsx) after the
+// server confirms the session. The role is only used to show or hide buttons: the API checks
+// the signed token on every request, so changing this value in the browser grants nothing.
+let currentUser: UserInfo | null = null;
+
+export function setCurrentUser(user: UserInfo | null): void {
+  currentUser = user;
 }
 
-export function setRole(role: Role): void {
-  try {
-    window.localStorage.setItem(ROLE_KEY, role);
-    window.localStorage.setItem(USER_KEY, `demo.${role}`);
-  } catch {
-    /* ignore */
-  }
-  window.dispatchEvent(new Event("rolechange"));
+export function getUser(): UserInfo | null {
+  return currentUser;
+}
+
+export function getRole(): Role {
+  return currentUser?.role ?? "viewer";
 }
 
 export class ApiError extends Error {
@@ -43,9 +38,12 @@ export class ApiError extends Error {
   }
 }
 
-function identityHeaders(): Record<string, string> {
-  const role = getRole();
-  return { "X-Demo-Role": role, "X-Demo-User": `demo.${role}` };
+/** A 401 on a normal call means the session ended: go to the sign-in page and come back here. */
+function handleUnauthorized(): void {
+  if (typeof window === "undefined" || window.location.pathname.startsWith("/login")) return;
+  setCurrentUser(null);
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.assign(`/login?next=${next}`);
 }
 
 async function toError(response: Response): Promise<ApiError> {
@@ -62,15 +60,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
     cache: "no-store",
-    headers: { "Content-Type": "application/json", ...identityHeaders(), ...(init.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
   });
+  if (response.status === 401) handleUnauthorized();
   if (!response.ok) throw await toError(response);
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
 async function form<T>(path: string, body: FormData): Promise<T> {
   // No Content-Type header: the browser adds the multipart boundary itself.
-  const response = await fetch(`/api${path}`, { method: "POST", body, cache: "no-store", headers: identityHeaders() });
+  const response = await fetch(`/api${path}`, { method: "POST", body, cache: "no-store" });
+  if (response.status === 401) handleUnauthorized();
   if (!response.ok) throw await toError(response);
   return (await response.json()) as T;
 }
@@ -111,21 +112,28 @@ export const api = {
   },
   validate: (docId: string, dealId?: string) =>
     request<ValidationReport>(`/documents/${encodeURIComponent(docId)}/validate${dealId ? `?deal_id=${encodeURIComponent(dealId)}` : ""}`, { method: "POST" }),
+  conversations: () => request<ConversationSummary[]>("/conversations"),
+  conversation: (id: string) => request<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`),
+  renameConversation: (id: string, title: string) =>
+    request<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ title }) }),
+  deleteConversation: (id: string) => request<void>(`/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  demoAccounts: () => request<DemoAccount[]>("/auth/demo-accounts"),
   audit: (action?: string) => request<AuditEvent[]>(`/audit?limit=200${action ? `&action=${encodeURIComponent(action)}` : ""}`),
 };
 
 /** Ask the Copilot and receive events as they stream in. */
 export async function streamCopilot(
-  body: { message: string; deal_id: string | null; history: { role: "user" | "assistant"; content: string }[] },
+  body: { message: string; deal_id: string | null; conversation_id: string | null },
   onEvent: (event: CopilotEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch("/api/copilot/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...identityHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal,
   });
+  if (response.status === 401) handleUnauthorized();
   if (!response.ok || !response.body) throw await toError(response);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();

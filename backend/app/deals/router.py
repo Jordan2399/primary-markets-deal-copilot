@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.core.security import CurrentUser, Role, require_roles
+from app.core.security import CurrentUser, Role, get_current_user, require_roles
 from app.deals.models import (
     CreateDealRequest,
     DealDetail,
@@ -17,7 +17,7 @@ from app.deals.models import (
 from app.deals.service import DealService
 from app.deps import get_deal_service
 
-router = APIRouter(tags=["deals"])
+router = APIRouter(tags=["deals"], dependencies=[Depends(get_current_user)])
 
 Service = Annotated[DealService, Depends(get_deal_service)]
 CanEdit = Annotated[CurrentUser, Depends(require_roles(Role.marketer, Role.syndicate))]

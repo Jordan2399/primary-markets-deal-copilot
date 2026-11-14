@@ -7,16 +7,22 @@
 import { fmtK, label } from "@/lib/format";
 import type { Bucket, LadderLevel, TimelinePoint } from "@/lib/types";
 
+// Fixed drawing area (SVG units; the viewBox scales it to any screen width).
 const W = 520;
 const H = 200;
+// Space kept free around the plot for axis labels: left, right, top, bottom.
 const PAD = { l: 46, r: 12, t: 12, b: 28 };
 
+/** Cumulative demand over time. The line is drawn from the API's numbers only. */
 export function LineChart({ points, ariaLabel }: { points: TimelinePoint[]; ariaLabel: string }) {
   if (points.length < 2) return <p className="muted small">No data yet.</p>;
+  // The `, 1` keeps the maximum above zero so we never divide by zero.
   const maxY = Math.max(...points.map((p) => p.cumulative_demand_k), 1);
   const maxX = Math.max(...points.map((p) => p.minute), 1);
+  // x() and y() convert a data value into a pixel position inside the padded plot area.
   const x = (m: number) => PAD.l + (m / maxX) * (W - PAD.l - PAD.r);
   const y = (v: number) => H - PAD.b - (v / maxY) * (H - PAD.t - PAD.b);
+  // SVG path: M = move to the first point, L = line to each next point.
   const path = points.map((p, i) => `${i ? "L" : "M"}${x(p.minute).toFixed(1)},${y(p.cumulative_demand_k).toFixed(1)}`).join(" ");
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel} className="chart">
@@ -31,9 +37,11 @@ export function LineChart({ points, ariaLabel }: { points: TimelinePoint[]; aria
   );
 }
 
+/** Bars of demand at each spread limit, with a line at the deal size and the final spread highlighted. */
 export function LadderChart({ levels, dealSizeK, finalBp }: { levels: LadderLevel[]; dealSizeK: number; finalBp?: number | null }) {
   if (levels.length === 0) return <p className="muted small">No data yet.</p>;
   const maxY = Math.max(dealSizeK, ...levels.map((l) => l.demand_k), 1);
+  // Width available to each bar ("slot"); bars are drawn slightly narrower to leave a gap.
   const slot = (W - PAD.l - PAD.r) / levels.length;
   const y = (v: number) => H - PAD.b - (v / maxY) * (H - PAD.t - PAD.b);
   return (
@@ -50,19 +58,22 @@ export function LadderChart({ levels, dealSizeK, finalBp }: { levels: LadderLeve
           >
             <title>{`${l.spread_bp}bp: ${fmtK(l.demand_k)} (${l.cover}x)`}</title>
           </rect>
+          {/* With many bars only every second label is printed, so labels do not overlap. */}
           {(levels.length <= 12 || i % 2 === 0) && (
             <text x={PAD.l + i * slot + slot / 2} y={H - 10} textAnchor="middle" className="tick">{l.spread_bp}</text>
           )}
         </g>
       ))}
       <line x1={PAD.l} y1={y(dealSizeK)} x2={W - PAD.r} y2={y(dealSizeK)} className="sizeline" />
-      <text x={W - PAD.r} y={y(dealSizeK) - 4} textAnchor="end" className="tick">deal size {fmtK(dealSizeK)}</text>
+      <text x={PAD.l + 4} y={y(dealSizeK) - 4} textAnchor="start" className="tick">deal size {fmtK(dealSizeK)}</text>
       <text x={PAD.l - 6} y={PAD.t + 8} textAnchor="end" className="tick">{fmtK(maxY)}</text>
     </svg>
   );
 }
 
+/** Horizontal share bars (for example demand by investor type). Values are printed next to the bars. */
 export function BarList({ buckets, title }: { buckets: Bucket[]; title: string }) {
+  // The largest bucket fills the track; the others are drawn relative to it.
   const max = Math.max(...buckets.map((b) => b.demand_k), 1);
   return (
     <div>

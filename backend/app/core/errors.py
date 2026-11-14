@@ -36,6 +36,20 @@ class BadRequestError(AppError):
     code = "bad_request"
 
 
+class UnauthorizedError(AppError):
+    """Not signed in, or the session is invalid or expired."""
+
+    status_code = 401
+    code = "unauthorized"
+
+
+class RateLimitError(AppError):
+    """Too many attempts (HTTP 429), used by the login lockout."""
+
+    status_code = 429
+    code = "rate_limited"
+
+
 class ForbiddenError(AppError):
     status_code = 403
     code = "forbidden"

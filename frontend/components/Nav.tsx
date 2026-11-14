@@ -2,59 +2,59 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ROLES, getRole, setRole } from "@/lib/client";
-import type { Role } from "@/lib/types";
+import Brand from "@/components/Brand";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useSession } from "@/lib/session";
+import { ROLE_CAN, ROLE_LABEL, linksFor } from "@/lib/session-utils";
 
-const LINKS = [
-  { href: "/", label: "Pipeline" },
-  { href: "/orderbook", label: "Order book" },
-  { href: "/allocation", label: "Allocation" },
-  { href: "/termsheets", label: "Term sheets" },
-  { href: "/copilot", label: "Copilot" },
-  { href: "/audit", label: "Audit" },
-  { href: "/status", label: "Status" },
-];
+/** Up to two capital letters from a display name, for the avatar circle ("Anna Keller" -> "AK"). */
+function initials(name: string): string {
+  return name
+    .replace(/\(.*\)/, "") // drop a role suffix like "(Syndicate)"
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
 
+/** The navy top bar: brand, role-filtered menu, theme switch, user card and sign-out. */
 export default function Nav() {
   const pathname = usePathname();
-  const [role, setLocalRole] = useState<Role>("viewer");
-
-  useEffect(() => {
-    setLocalRole(getRole());
-    const sync = () => setLocalRole(getRole());
-    window.addEventListener("rolechange", sync);
-    return () => window.removeEventListener("rolechange", sync);
-  }, []);
+  const { user, signOut } = useSession();
+  // Which menu item is highlighted. Pipeline also covers /deals/... pages.
+  const current = (href: string) => (href === "/" ? pathname === "/" || pathname.startsWith("/deals") : pathname.startsWith(href));
 
   return (
-    <header className="nav">
-      <strong className="brand">Deal Copilot</strong>
-      <nav aria-label="Main">
-        {LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            aria-current={(l.href === "/" ? pathname === "/" || pathname.startsWith("/deals") : pathname.startsWith(l.href)) ? "page" : undefined}
-          >
-            {l.label}
-          </Link>
-        ))}
-      </nav>
-      <label className="role">
-        <span className="muted">Demo role</span>
-        <select
-          value={role}
-          onChange={(e) => {
-            setRole(e.target.value as Role);
-            window.location.reload();
-          }}
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>{r}</option>
+    <header className="topbar">
+      <div className="topbar-inner">
+        <Link href="/" className="brand" aria-label="Deal Copilot home">
+          <Brand />
+          <span className="brand-text">
+            <strong>Deal Copilot</strong>
+            <small>Primary Markets</small>
+          </span>
+        </Link>
+        <nav aria-label="Main" className="mainnav">
+          {/* linksFor hides pages the role cannot use; the API still enforces the real rule. */}
+          {linksFor(user.role).map((l) => (
+            <Link key={l.href} href={l.href} aria-current={current(l.href) ? "page" : undefined}>
+              {l.label}
+            </Link>
           ))}
-        </select>
-      </label>
+        </nav>
+        <div className="topbar-right">
+          <ThemeToggle />
+          <div className="usercard" title={ROLE_CAN[user.role]}>
+            <span className="avatar" aria-hidden="true">{initials(user.display_name) || user.username[0]?.toUpperCase()}</span>
+            <span className="user-text">
+              <span className="user-name">{user.display_name.replace(/\s*\(.*\)/, "")}</span>
+              <span className={`role-badge role-${user.role}`}>{ROLE_LABEL[user.role]}</span>
+            </span>
+          </div>
+          <button className="ghost" onClick={() => void signOut()}>Sign out</button>
+        </div>
+      </div>
     </header>
   );
 }
