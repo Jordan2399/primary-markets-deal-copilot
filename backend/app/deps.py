@@ -104,5 +104,8 @@ def get_termsheet_service(
     deals: Annotated[DealService, Depends(get_deal_service)],
     audit: Annotated[AuditService, Depends(get_audit_service)],
     llm: Llm,
+    config: Config,
 ) -> TermSheetService:
-    return TermSheetService(Neo4jTermSheetRepository(db), deals, llm, audit)
+    return TermSheetService(
+        Neo4jTermSheetRepository(db), deals, llm, audit, model_mode=config.termsheet_model_mode
+    )

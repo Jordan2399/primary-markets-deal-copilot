@@ -415,3 +415,14 @@ tbody tr:last-child td { border-bottom: none; }
   .bar-value { grid-column: 1 / -1; text-align: left; }
   .container { padding: 20px 14px 32px; }
 }
+
+/* ---- term sheet input mode ---- */
+
+/* Segmented switch (Paste text / Upload file): two buttons that look like one control. */
+.segmented { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; margin: 12px 0; }
+.segmented button { border: none; border-radius: 0; background: var(--surface); color: var(--muted); padding: 7px 16px; }
+.segmented button.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.dropzone { border: 1px dashed var(--border-strong); border-radius: 10px; padding: 16px; margin-bottom: 12px; background: var(--surface-2); display: grid; gap: 8px; }
+button.link { border: none; background: transparent; color: var(--accent-strong); text-decoration: underline; padding: 0; cursor: pointer; }
+.alert.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.dropzone input[type="file"] { width: auto; border: none; padding: 0; background: transparent; }

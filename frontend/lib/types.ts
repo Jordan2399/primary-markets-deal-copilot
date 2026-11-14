@@ -206,6 +206,13 @@ export type Extraction = {
   model: string | null;
   text_chars: number;
   record: TermSheetRecord;
+  source: "text" | "file"; // which input was read; the API accepts only one
+  focused: boolean; // true when only the passages around the terms went to the model
+  model_chars: number; // how many characters the model read
+  not_found: string[]; // required fields no reader could find
+  model_error: string | null; // why the model gave no answer, when the rules were used alone
+  model_skipped: boolean; // true when the rules found every required field
+  filled_by_model: string[]; // fields only the model filled
 };
 export type Check = { field: string; rule: string; ok: boolean; severity: "error" | "warning"; message: string };
 export type DiffRow = {
