@@ -13,6 +13,8 @@ x-api-env: &api-env
   LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
   LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b-instruct}
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-300}
+  TERMSHEET_MODEL_MODE: ${TERMSHEET_MODEL_MODE:-gaps}
   LLM_EMBED_MODEL: ${LLM_EMBED_MODEL:-nomic-embed-text}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
   AUTH_MODE: ${AUTH_MODE:-jwt}
