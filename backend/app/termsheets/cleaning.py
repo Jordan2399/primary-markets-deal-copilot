@@ -139,18 +139,22 @@ def _continues_previous(previous: str, line: str) -> bool:
 
 # Where each required field is usually stated. Used to read only the passages for missing fields.
 _FIELD_ANCHORS: dict[str, re.Pattern[str]] = {
-    "issuer": re.compile(r"issuer|issue of|emittentin|émetteur|emisor|emittente|uitgevende|\bby\b.{0,60}\(the", re.I),
+    "issuer": re.compile(
+        r"issuer|issue of|emittentin|émetteur|emisor|emittente|uitgevende|\bby\b.{0,60}\(the", re.I
+    ),
     "isin": re.compile(r"isin|common code|\b[A-Z]{2}[A-Z0-9]{9}\d\b"),
-    "currency": re.compile(r"specified currency|currency|währung|devise|divisa|moneda|valuta|issue of", re.I),
+    "currency": re.compile(
+        r"specified currency|currency|währung|devise|divisa|moneda|valuta|issue of", re.I
+    ),
     "size_mm": re.compile(
         r"aggregate nominal amount|principal amount|issue size|issue of|nominal amount|"
         r"gesamtnennbetrag|montant nominal|importe nominal|importo nominale|hoofdsom",
-        re.I
+        re.I,
     ),
     "coupon_pct": re.compile(
         r"rate of interest|interest rate|interest basis|coupon|per cent|zinssatz|taux d.intérêt|"
         r"tipo de interés|tasso di interesse|rentevoet",
-        re.I
+        re.I,
     ),
     "maturity": re.compile(
         r"maturity date|notes due|maturity|fälligkeit|échéance|vencimiento|scadenza|vervaldatum",

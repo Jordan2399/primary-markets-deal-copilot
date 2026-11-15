@@ -53,6 +53,7 @@ for _pack in LABELS.values():
 # "3.", "(iv)", "4.1" or "A)" at the start of a label is a row number, not part of the name.
 _ROW_NUMBER = re.compile(r"^(?:\(?[0-9]+(?:\.[0-9]+)*[.)]?|\(?[ivx]+\)|[a-z]\))\s+", re.I)
 
+
 def parse_date(value: str) -> date | None:
     """Dates such as 2032-11-13, 13/11/2032, 13.11.2032, "13 November 2032", "13. November 2032",
     "13 janvier 2032" or "13 de enero de 2032" (month names of every supported language)."""
@@ -79,7 +80,18 @@ def parse_date(value: str) -> date | None:
     return None
 
 
-_UNIT_MILLION = ("million", "millionen", "millón", "millones", "milioni", "miljoen", "mm", "m", "mio", "mio.")
+_UNIT_MILLION = (
+    "million",
+    "millionen",
+    "millón",
+    "millones",
+    "milioni",
+    "miljoen",
+    "mm",
+    "m",
+    "mio",
+    "mio.",
+)
 _UNIT_BILLION = ("billion", "milliard", "milliarde", "milliards", "bn", "mrd", "mrd.")
 
 
@@ -104,7 +116,8 @@ def parse_size_mm(value: str) -> float | None:
 
 # What a real amount looks like: a currency code next to digits, a unit, or a long grouped number.
 _AMOUNT = re.compile(
-    r"\b[A-Z]{3}\s*\d|\d\s*(?:million|millionen|millón|millones|milioni|miljoen|mm|m|mio\.?|billion|milliard|milliarde|bn|mrd\.?)\b|\d{1,3}(?:[.,\s ]\d{3}){2,}", re.IGNORECASE
+    r"\b[A-Z]{3}\s*\d|\d\s*(?:million|millionen|millón|millones|milioni|miljoen|mm|m|mio\.?|billion|milliard|milliarde|bn|mrd\.?)\b|\d{1,3}(?:[.,\s ]\d{3}){2,}",
+    re.IGNORECASE,
 )
 
 # Currency names that appear instead of a code in some Final Terms ("Euro (\u201cEUR\u201d)").
@@ -188,7 +201,7 @@ def scan_isin(text: str) -> str | None:
 
 
 def scan_governing_law(text: str) -> str | None:
-    """"German law" from a sentence such as "...governed by German law", when no row states it."""
+    """ "German law" from a sentence such as "...governed by German law", when no row states it."""
     for m in _LAW.finditer(text):
         if _LAW_CONTEXT.search(text[max(0, m.start() - 80) : m.end()]):
             return f"{m.group(1).title()} law"
