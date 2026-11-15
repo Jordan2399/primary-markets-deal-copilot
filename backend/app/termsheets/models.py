@@ -44,6 +44,27 @@ class ExtractionOut(BaseModel):
     model: str | None
     text_chars: int
     record: TermSheetRecord
+    source: str = "text"  # text or file: which input was read (never both)
+    focused: bool = False  # True when only the terms passages were sent to the model
+    model_chars: int = 0  # how many characters the model actually read
+    not_found: list[str] = Field(default_factory=list)  # fields no reader could find
+    model_error: str | None = None  # why the model gave no answer (rules were used instead)
+    model_skipped: bool = False  # True when the rules found every required field
+    filled_by_model: list[str] = Field(default_factory=list)  # fields only the model filled
+    language: str = "en"  # detected document language: en, de, fr, es, it or nl
+
+
+class DocumentSummary(BaseModel):
+    """A term sheet linked to a deal, for the deal's Documents tab (no full text)."""
+
+    id: str
+    filename: str
+    method: str
+    model: str | None
+    extracted_by: str
+    extracted_at: datetime
+    issuer: str | None
+    isin: str | None
 
 
 class Check(BaseModel):

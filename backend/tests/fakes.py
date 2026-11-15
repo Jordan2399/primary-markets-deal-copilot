@@ -292,7 +292,7 @@ def parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
 # ---------------------------------------------------------------- Day 2 fakes
 from app.allocation.models import Proposal, ProposalSummary  # noqa: E402
 from app.investors.generator import build_investors  # noqa: E402
-from app.investors.models import Investor  # noqa: E402
+from app.investors.models import Investor, InvestorOrder  # noqa: E402
 from app.orderbook.models import BookParams, NewOrder, OrderRow  # noqa: E402
 from app.termsheets.models import StoredTermSheet  # noqa: E402
 
@@ -402,6 +402,10 @@ class FakeTermSheetRepository:
     async def get(self, doc_id: str) -> StoredTermSheet | None:
         return self.docs.get(doc_id)
 
+    async def list_for_deal(self, deal_id: str) -> list[StoredTermSheet]:
+        found = [d for d in self.docs.values() if d.deal_id == deal_id]
+        return sorted(found, key=lambda d: d.extracted_at, reverse=True)
+
 
 class FakeUserRepository:
     def __init__(self, users: list[Any] | None = None) -> None:
@@ -501,3 +505,59 @@ class FakeConversationRepository:
         del self.threads[conversation_id]
         self.events.append(event)
         return True
+
+
+class FakeInvestorRepository:
+    """Investor reads built from the other fakes, so tests set up data the normal way."""
+
+    def __init__(
+        self,
+        book: "FakeOrderBookRepository",
+        deals: "FakeDealRepository",
+        allocations: "FakeAllocationRepository",
+    ) -> None:
+        self._book = book
+        self._deals = deals
+        self._allocations = allocations
+
+    async def list_investors(self) -> list[Investor]:
+        return self._book.investors
+
+    async def list_orders(self) -> list[InvestorOrder]:
+        from app.deals.service import DealService  # local import: avoids a cycle at load time
+
+        # One proposal per deal: an APPROVED one wins over a PROPOSED one (same rule as the real
+        # repository), and the latest wins among equals.
+        chosen: dict[str, Proposal] = {}
+        for p in self._allocations.proposals.values():
+            if p.state not in ("APPROVED", "PROPOSED"):
+                continue
+            current = chosen.get(p.deal_id)
+            if current is None or (p.state == "APPROVED", p.proposed_at) > (
+                current.state == "APPROVED",
+                current.proposed_at,
+            ):
+                chosen[p.deal_id] = p
+        allocated = {line.order_id: line.allocated_k for p in chosen.values() for line in p.lines}
+
+        by_id = {i.id: i for i in self._book.investors}
+        result: list[InvestorOrder] = []
+        for deal_id, orders in self._book._orders.items():
+            deal = await DealService(self._deals).get_deal(deal_id)
+            for o in orders:
+                result.append(
+                    InvestorOrder(
+                        investor_id=by_id[o.investor_id].id,
+                        order_id=o.id,
+                        deal_id=deal_id,
+                        deal_name=deal.name,
+                        stage_name=deal.stage_name,
+                        currency=deal.currency,
+                        deal_size_mm=deal.size_mm,
+                        amount_k=o.amount_k,
+                        limit_bp=o.limit_bp,
+                        placed_at=o.placed_at.isoformat(),
+                        allocated_k=allocated.get(o.id),
+                    )
+                )
+        return result

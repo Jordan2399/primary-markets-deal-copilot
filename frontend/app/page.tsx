@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { ErrorBox, Pill, Progress, fmtDate } from "@/components/ui";
 import { api, getRole } from "@/lib/client";
 import type { CreateDealInput, DealSummary, Issuer, Stage } from "@/lib/types";
@@ -21,6 +22,10 @@ export default function Pipeline() {
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  // Board filters: free text (deal or issuer name), currency, and "only deals with blocking tasks".
+  const [search, setSearch] = useState("");
+  const [currency, setCurrency] = useState("");
+  const [blockedOnly, setBlockedOnly] = useState(false);
   // UX only: shows the New deal button for roles that may create deals. The API enforces it too.
   const canCreate = ["marketer", "admin"].includes(getRole());
 
@@ -43,6 +48,18 @@ export default function Pipeline() {
     void load();
   }, [load]);
 
+  // The deals that pass the filters. The KPI tiles above still count every deal.
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return deals.filter(
+      (d) =>
+        (!needle || d.name.toLowerCase().includes(needle) || d.issuer_name.toLowerCase().includes(needle)) &&
+        (!currency || d.currency === currency) &&
+        (!blockedOnly || d.blockers_open > 0),
+    );
+  }, [deals, search, currency, blockedOnly]);
+  const filtering = Boolean(search.trim() || currency || blockedOnly);
+
   return (
     <main className="container wide">
       <div className="row between">
@@ -60,13 +77,33 @@ export default function Pipeline() {
       {/* KPI tiles are computed from the deals already loaded: no extra API call. */}
       {!loading && deals.length > 0 && <Kpis deals={deals} />}
       {showForm && <NewDealForm issuers={issuers} onCreated={() => { setShowForm(false); void load(); }} />}
+      {!loading && deals.length > 0 && (
+        <div className="filters" role="search">
+          <label>Search
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Deal or issuer" maxLength={60} />
+          </label>
+          <label>Currency
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="">All</option>
+              {["EUR", "USD", "GBP", "CHF"].map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </label>
+          <label className="inline"><input type="checkbox" checked={blockedOnly} onChange={(e) => setBlockedOnly(e.target.checked)} /> Only deals with blocking tasks</label>
+          {filtering && (
+            <>
+              <span className="muted small" aria-live="polite">{visible.length} of {deals.length} deals</span>
+              <button type="button" onClick={() => { setSearch(""); setCurrency(""); setBlockedOnly(false); }}>Clear</button>
+            </>
+          )}
+        </div>
+      )}
       {loading ? (
-        <p className="muted">Loading...</p>
+        <Skeleton lines={6} height={20} />
       ) : (
         <div className="board">
           {stages.map((stage) => {
             // The deals that belong in this stage's column.
-            const inStage = deals.filter((d) => d.stage_code === stage.code);
+            const inStage = visible.filter((d) => d.stage_code === stage.code);
             return (
               <section key={stage.code} className="column" aria-label={stage.name}>
                 <h2>

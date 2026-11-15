@@ -206,6 +206,14 @@ export type Extraction = {
   model: string | null;
   text_chars: number;
   record: TermSheetRecord;
+  source: "text" | "file"; // which input was read; the API accepts only one
+  focused: boolean; // true when only the passages around the terms went to the model
+  model_chars: number; // how many characters the model read
+  not_found: string[]; // required fields no reader could find
+  model_error: string | null; // why the model gave no answer, when the rules were used alone
+  model_skipped: boolean; // true when the rules found every required field
+  filled_by_model: string[]; // fields only the model filled
+  language: string; // detected document language: en, de, fr, es, it or nl
 };
 export type Check = { field: string; rule: string; ok: boolean; severity: "error" | "warning"; message: string };
 export type DiffRow = {
@@ -248,3 +256,83 @@ export type StoredMessage = {
   audit_id: string | null;
 };
 export type ConversationDetail = ConversationSummary & { messages: StoredMessage[] };
+
+/* ---- Day 3b: investors, the deal network and documents per deal ---- */
+
+export type Investor = {
+  id: string;
+  name: string;
+  type: string;
+  region: string;
+  real_money: boolean;
+  esg_focus: boolean;
+  ticket_mean_k: number;
+  ticket_std_k: number;
+  past_participation: number;
+};
+/** An investor plus a roll-up of its activity in the books we hold. */
+export type InvestorSummary = Investor & { deals: number; orders: number; ordered_k: number; allocated_k: number };
+export type Facet = { value: string; count: number };
+export type InvestorPage = {
+  total: number;
+  page: number;
+  page_size: number;
+  items: InvestorSummary[];
+  types: Facet[];
+  regions: Facet[];
+};
+export type InvestorOrder = {
+  investor_id: string;
+  order_id: string;
+  deal_id: string;
+  deal_name: string;
+  stage_name: string;
+  currency: string;
+  deal_size_mm: number;
+  amount_k: number;
+  limit_bp: number;
+  placed_at: string;
+  allocated_k: number | null;
+};
+export type InvestorProfile = { investor: InvestorSummary; orders: InvestorOrder[]; similar: InvestorSummary[] };
+export type InvestorQuery = {
+  q?: string;
+  type?: string;
+  region?: string;
+  real_money?: boolean;
+  esg?: boolean;
+  sort?: "name" | "orders" | "ordered" | "participation";
+  page?: number;
+  page_size?: number;
+};
+export type NetworkNode = {
+  investor_id: string;
+  name: string;
+  type: string;
+  region: string;
+  real_money: boolean;
+  amount_k: number;
+  orders: number;
+};
+export type NetworkGroup = { label: string; investors: number; demand_k: number; share_pct: number };
+export type DealNetwork = {
+  deal_id: string;
+  deal_name: string;
+  currency: string;
+  deal_size_k: number;
+  total_demand_k: number;
+  nodes: NetworkNode[];
+  by_type: NetworkGroup[];
+  by_region: NetworkGroup[];
+};
+export type Target = { investor: InvestorSummary; score: number; reasons: string[]; cautions: string[] };
+export type DocumentSummary = {
+  id: string;
+  filename: string;
+  method: string;
+  model: string | null;
+  extracted_by: string;
+  extracted_at: string;
+  issuer: string | null;
+  isin: string | null;
+};

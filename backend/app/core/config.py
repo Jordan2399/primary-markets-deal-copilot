@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 120.0
     llm_num_ctx: int = 8192  # context window; larger values use more VRAM
     llm_keep_alive: str = "5m"  # how long Ollama keeps the model loaded after a request
+    # Term sheets: "gaps" = fixed rules read first and the model only fills what they missed;
+    # "always" = the model reads every document and the rules fill its blanks.
+    termsheet_model_mode: Literal["gaps", "always"] = "gaps"
 
     # Retrieval. The vector index dimension MUST match the embedding model (768 for nomic-embed-text).
     embed_dimensions: int = 768
