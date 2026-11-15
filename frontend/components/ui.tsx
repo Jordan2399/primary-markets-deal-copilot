@@ -35,3 +35,24 @@ export function fmtDate(value: string | null): string {
 export function fmtTime(value: string): string {
   return new Date(value).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
+
+/** One small labelled figure with an optional note underneath (used in the KPI rows). */
+export function Stat({ name, value, note, tone }: { name: string; value: string; note?: string; tone?: "warn" }) {
+  return (
+    <div className="stat">
+      <div className="muted small">{name}</div>
+      <div className={`stat-value${tone === "warn" ? " warn" : ""}`}>{value}</div>
+      {note ? <div className="muted small">{note}</div> : null}
+    </div>
+  );
+}
+
+/** A friendly "nothing here yet" box that says what to do next. */
+export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <strong>{title}</strong>
+      {children ? <p className="muted small">{children}</p> : null}
+    </div>
+  );
+}

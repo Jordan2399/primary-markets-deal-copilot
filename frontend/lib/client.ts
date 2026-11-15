@@ -3,7 +3,8 @@
 import { SseParser } from "./sse";
 import type {
   AllocationResult, AuditEvent, ConversationDetail, ConversationSummary, CopilotEvent, CreateDealInput, DealDetail,
-  DealSummary, DemoAccount, Extraction, Issuer, OrderBook, Proposal, ProposalSummary, Role, Sample, SimulateInput,
+  DealNetwork, DealSummary, DemoAccount, DocumentSummary, Extraction, InvestorPage, InvestorProfile, InvestorQuery,
+  Issuer, OrderBook, Target, Proposal, ProposalSummary, Role, Sample, SimulateInput,
   Stage, Task, TaskStatus, UserInfo, ValidationReport,
 } from "./types";
 
@@ -117,6 +118,20 @@ export const api = {
   renameConversation: (id: string, title: string) =>
     request<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ title }) }),
   deleteConversation: (id: string) => request<void>(`/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // Day 3b: investors, a deal's investor network and target list, and a deal's documents.
+  investors: (query: InvestorQuery = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    }
+    const text = params.toString();
+    return request<InvestorPage>(`/investors${text ? `?${text}` : ""}`);
+  },
+  investor: (id: string) => request<InvestorProfile>(`/investors/${encodeURIComponent(id)}`),
+  investorNetwork: (dealId: string) => request<DealNetwork>(`/deals/${encodeURIComponent(dealId)}/investor-network`),
+  investorTargets: (dealId: string, limit = 15) =>
+    request<Target[]>(`/deals/${encodeURIComponent(dealId)}/investor-targets?limit=${limit}`),
+  documents: (dealId: string) => request<DocumentSummary[]>(`/deals/${encodeURIComponent(dealId)}/documents`),
   demoAccounts: () => request<DemoAccount[]>("/auth/demo-accounts"),
   audit: (action?: string) => request<AuditEvent[]>(`/audit?limit=200${action ? `&action=${encodeURIComponent(action)}` : ""}`),
 };

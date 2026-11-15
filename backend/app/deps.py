@@ -22,6 +22,8 @@ from app.deals.repository import Neo4jDealRepository
 from app.deals.service import DealService
 from app.documents.repository import Neo4jDocumentRepository
 from app.documents.service import DocumentService
+from app.investors.repository import Neo4jInvestorRepository
+from app.investors.service import InvestorService
 from app.llm.base import LLMProvider
 from app.orderbook.repository import Neo4jOrderBookRepository
 from app.orderbook.service import OrderBookService
@@ -91,6 +93,12 @@ def get_orderbook_service(
     db: Db, deals: Annotated[DealService, Depends(get_deal_service)]
 ) -> OrderBookService:
     return OrderBookService(Neo4jOrderBookRepository(db), deals)
+
+
+def get_investor_service(
+    db: Db, deals: Annotated[DealService, Depends(get_deal_service)]
+) -> InvestorService:
+    return InvestorService(Neo4jInvestorRepository(db), Neo4jOrderBookRepository(db), deals)
 
 
 def get_allocation_service(

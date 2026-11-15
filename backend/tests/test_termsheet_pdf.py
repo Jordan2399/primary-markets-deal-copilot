@@ -7,10 +7,13 @@ text. No real document is used.
 
 import io
 import json
+from datetime import date
 
+import pytest
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from app.core.errors import BadRequestError
 from app.llm.fake import FakeLLM
 from app.termsheets.cleaning import FOCUS_THRESHOLD, clean_pages, focus_terms, join_wrapped_lines
 from app.termsheets.parser import read_text
@@ -305,3 +308,68 @@ def test_focus_fields_reads_only_the_passages_of_the_missing_fields() -> None:
     excerpt = focus_fields(text, ["isin"])
     assert "XS2579324869" in excerpt and len(excerpt) <= GAP_MAX_CHARS
     assert len(excerpt) < len(text) / 4
+
+
+# A second real layout (a BNP Paribas style document): "%" coupon, a maturity given only as month
+# and year in the title, "Series:" without a numeral under an empty label, and a maturity date that
+# is described in words. The names and numbers follow a public document; the text is shortened.
+BNPP_STYLE = """\
+FINAL TERMS DATED 8 NOVEMBER 2023
+BNP Paribas
+Issue of EUR 1,500,000,000 4.750% Fixed to Floating Rate Senior Non Preferred Notes due November 2032
+under the EUR 90,000,000,000 Euro Medium Term Note Programme
+1. Issuer: BNP Paribas
+2. (i) Trade Date: 6 November 2023
+(ii) Series Number: 20052
+(iii) Tranche Number: 1
+3. Specified Currency: Euro ("EUR")
+4. Aggregate Nominal Amount:
+Series: EUR 1,500,000,000
+Tranche: EUR 1,500,000,000
+5. Issue Price: 99.8 per cent. of the Aggregate Nominal Amount
+8. (i) Issue Date: 13 November 2023
+9. (i) Maturity Date: Interest Payment Date falling on or nearest to 13 November 2032
+23. Interest: Applicable
+Rate of Interest: Fixed Rate to Floating Rate
+ISIN Code: FR001400LZI6
+"""
+
+
+def test_second_layout_gives_every_required_field_without_the_model() -> None:
+    record = extract_with_rules(BNPP_STYLE)
+    assert record.issuer == "BNP Paribas"
+    assert record.currency == "EUR"
+    assert record.size_mm == 1500.0  # from the title, and the same from the "Series:" line
+    assert record.coupon_pct == 4.75  # "%" instead of "per cent."
+    assert record.maturity == date(2032, 11, 13)  # the date inside the sentence
+    assert record.isin == "FR001400LZI6"
+
+
+def test_series_line_alone_gives_the_size_when_the_title_has_none() -> None:
+    record = extract_with_rules(BNPP_STYLE.replace("Issue of EUR 1,500,000,000", "Issue of notes"))
+    assert record.size_mm == 1500.0
+
+
+# ------------------------------------------------------------------ long documents (with the terms and conditions bound in)
+
+
+def test_a_100_page_document_is_read_and_its_terms_are_found() -> None:
+    text = read_text("final-terms.pdf", make_pdf(pages=100))
+    assert "Aggregate Nominal Amount" in text  # the terms on page 3 survived
+    record = extract_with_rules(text)
+    assert record.currency == "EUR" and record.size_mm == 500.0
+
+
+def test_a_base_prospectus_sized_pdf_is_still_refused() -> None:
+    with pytest.raises(BadRequestError, match="more than 150 pages"):
+        read_text("base-prospectus.pdf", make_pdf(pages=151))
+
+
+def test_optional_fields_filled_by_the_model_are_credited_to_it() -> None:
+    # The rules find everything required except the ISIN; the model returns the ISIN AND a listing.
+    llm = FakeLLM(
+        chat_responses=[json.dumps({"isin": "XS2579324869", "listing": "Euronext Dublin"})]
+    )
+    out = _extract(_service(llm, "gaps"), FLATTENED_TABLE.replace("Luxembourg Stock Exchange", ""))
+    assert "isin" in out.filled_by_model and "listing" in out.filled_by_model
+    assert out.record.listing == "Euronext Dublin"

@@ -26,6 +26,8 @@ from app.deals.repository import Neo4jDealRepository
 from app.deals.service import DealService
 from app.documents.repository import Neo4jDocumentRepository
 from app.documents.service import DocumentService
+from app.investors.repository import Neo4jInvestorRepository
+from app.investors.service import InvestorService
 from app.llm.fake import FakeLLM
 from app.orderbook.repository import Neo4jOrderBookRepository
 from app.orderbook.service import OrderBookService
@@ -232,3 +234,23 @@ async def test_conversation_threads_against_neo4j(seeded: Neo4jClient) -> None:
     await service.delete(SYNDICATE, cid)
     with pytest.raises(NotFoundError):
         await service.get(SYNDICATE, cid)
+
+
+async def test_investor_queries_against_neo4j(seeded: Neo4jClient) -> None:
+    """The Cypher of the investor pages: directory activity, profile, network and targets."""
+    service = InvestorService(
+        Neo4jInvestorRepository(seeded),
+        Neo4jOrderBookRepository(seeded),
+        DealService(Neo4jDealRepository(seeded)),
+    )
+    page = await service.directory(
+        q=None, type_=None, region=None, real_money=None, esg=None,
+        sort="ordered", page=1, page_size=5,
+    )  # fmt: skip
+    assert page.total == 150 and page.items[0].ordered_k > 0  # the seeded books have orders
+    profile = await service.profile(page.items[0].id)
+    assert profile.orders and profile.investor.deals >= 1
+    network = await service.network("D-2026-007")  # a deal at book building
+    assert network.nodes and network.total_demand_k == sum(n.amount_k for n in network.nodes)
+    targets = await service.targets("D-2026-007", 10)
+    assert targets and not {t.investor.id for t in targets} & {n.investor_id for n in network.nodes}

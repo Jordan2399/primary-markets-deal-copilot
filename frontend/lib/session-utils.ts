@@ -21,6 +21,7 @@ export const NAV_LINKS: NavLink[] = [
   { href: "/", label: "Pipeline", roles: "all" },
   { href: "/orderbook", label: "Order book", roles: ["syndicate", "approver", "admin"] },
   { href: "/allocation", label: "Allocation", roles: ["syndicate", "approver", "admin"] },
+  { href: "/investors", label: "Investors", roles: ["marketer", "syndicate", "approver"] },
   { href: "/termsheets", label: "Term sheets", roles: "all" },
   { href: "/copilot", label: "Copilot", roles: "all" },
   { href: "/audit", label: "Audit", roles: ["admin"] },

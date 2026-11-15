@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from app.core.errors import BadRequestError
 from app.core.security import CurrentUser, get_current_user
 from app.deps import get_termsheet_service
-from app.termsheets.models import ExtractionOut, SampleOut, ValidationReport
+from app.termsheets.models import DocumentSummary, ExtractionOut, SampleOut, ValidationReport
 from app.termsheets.parser import MAX_BYTES
 from app.termsheets.service import TermSheetService
 
@@ -46,6 +46,12 @@ async def validate_term_sheet(
 ) -> ValidationReport:
     """Run the validation rules and, when a deal is known, the field-by-field booking diff."""
     return await service.validate(doc_id, deal_id, user)
+
+
+@router.get("/deals/{deal_id}/documents", response_model=list[DocumentSummary])
+async def deal_documents(deal_id: str, service: Service) -> list[DocumentSummary]:
+    """Term sheets extracted for this deal, newest first."""
+    return await service.list_for_deal(deal_id)
 
 
 @router.get("/deals/{deal_id}/termsheet-sample", response_model=SampleOut)

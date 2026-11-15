@@ -5,7 +5,7 @@
 | Area | Before | Now |
 | --- | --- | --- |
 | Input | Text box and file input at the same time; the file silently won | A switch: **Paste text** or **Upload file**. Leaving a mode clears its input. The API refuses both at once (400) |
-| PDF reading | Raw text of up to 20 pages | Up to 40 pages; running headers, footers and page numbers removed; hyphenated and wrapped lines joined |
+| PDF reading | Raw text of up to 20 pages | Up to 150 pages; running headers, footers and page numbers removed; hyphenated and wrapped lines joined |
 | What the model reads | The first 30,000 characters | The cover plus the passages around the term keywords (issuer, ISIN, currency, amount, coupon, dates, listing, law). Short documents are sent whole |
 | Rules fallback | `Label: value` lines only | Also numbered rows ("3. Specified Currency"), longer legal names, "3.750 per cent.", and values on the line after the label |
 | Feedback | "X is missing" in the check list | The result names the source (text or file), says when only the terms passages were read, and lists the fields not found |
@@ -34,6 +34,6 @@
 ## Honest limits
 
 - Scanned PDFs (images) still fail: there is no OCR.
-- A base prospectus (over 40 pages or 2 MB) is refused. This lab is for Final Terms and term sheets.
+- A base prospectus (over 150 pages or 2 MB) is refused. This lab is for Final Terms and term sheets.
 - Focusing uses keywords, not understanding. An unusual document that never uses these words may lose its terms; the page then lists them as not found.
 - Tested with generated PDFs and a fake model. A real file and the real model are the next test.

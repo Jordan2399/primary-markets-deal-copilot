@@ -6,8 +6,12 @@ from app.core.errors import BadRequestError
 from app.termsheets.cleaning import clean_pages
 
 MAX_BYTES = 2 * 1024 * 1024
-MAX_PDF_PAGES = 40  # Final Terms are usually 10-30 pages; longer files are base prospectuses
-MAX_CHARS = 80_000  # ceiling for the stored text; the model gets a focused part of it
+# Final Terms are 10-30 pages, but some issuers (German Sparkassen, for example) bind the full
+# terms and conditions to them, which makes 60-120 pages. The rules read all of it in milliseconds
+# and the model only sees a small excerpt, so the length is not a problem; a base prospectus
+# (hundreds of pages) is still refused because it holds no single deal.
+MAX_PDF_PAGES = 150
+MAX_CHARS = 400_000  # ceiling for the stored text (about 150 pages of legal text)
 ALLOWED_SUFFIXES = (".txt", ".md", ".pdf")
 
 
