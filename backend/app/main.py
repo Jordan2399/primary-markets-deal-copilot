@@ -20,6 +20,7 @@ from app.db.neo4j import Neo4jClient
 from app.db.schema import ensure_schema
 from app.deals.router import router as deals_router
 from app.health.router import router as health_router
+from app.investors.router import router as investors_router
 from app.llm.factory import create_provider
 from app.orderbook.router import router as orderbook_router
 from app.termsheets.router import router as termsheets_router
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(audit_router, prefix="/api/v1")
     app.include_router(copilot_router, prefix="/api/v1")
     app.include_router(orderbook_router, prefix="/api/v1")
+    app.include_router(investors_router, prefix="/api/v1")
     app.include_router(allocation_router, prefix="/api/v1")
     app.include_router(termsheets_router, prefix="/api/v1")
     return app

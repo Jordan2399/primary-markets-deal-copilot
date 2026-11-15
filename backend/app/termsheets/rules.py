@@ -7,6 +7,8 @@ extraction testable without a GPU. It reads only simple labelled lines.
 import re
 from datetime import date, datetime
 
+from app.common.isin import is_valid_isin
+from app.termsheets.languages import CURRENCY_NAMES, LABELS, month_number, to_float
 from app.termsheets.models import TermSheetRecord
 
 # Label spellings per field. Real Final Terms use longer legal names, so those are listed too.
@@ -39,77 +41,74 @@ _LABELS: dict[str, tuple[str, ...]] = {
         "admission to trading",
         "listing and admission to trading",
     ),
-    "governing_law": ("governing law", "law"),
+    "governing_law": ("governing law", "law", "applicable law", "applicable law"),
 }
+
+# Labels of the other languages (German, French, Spanish, Italian, Dutch) are merged into the
+# table above, so the same rules read a term sheet in any of them. See languages.py.
+for _pack in LABELS.values():
+    for _key, _names in _pack.items():
+        _LABELS[_key] = tuple(dict.fromkeys((*_LABELS.setdefault(_key, ()), *_names)))
 
 # "3.", "(iv)", "4.1" or "A)" at the start of a label is a row number, not part of the name.
 _ROW_NUMBER = re.compile(r"^(?:\(?[0-9]+(?:\.[0-9]+)*[.)]?|\(?[ivx]+\)|[a-z]\))\s+", re.I)
 
-_MONTHS = {
-    m: i
-    for i, m in enumerate(
-        [
-            "january",
-            "february",
-            "march",
-            "april",
-            "may",
-            "june",
-            "july",
-            "august",
-            "september",
-            "october",
-            "november",
-            "december",
-        ],
-        start=1,
-    )
-}
-
-
 def parse_date(value: str) -> date | None:
+    """Dates such as 2032-11-13, 13/11/2032, 13.11.2032, "13 November 2032", "13. November 2032",
+    "13 janvier 2032" or "13 de enero de 2032" (month names of every supported language)."""
     value = value.strip().rstrip(".")
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
             pass
-    match = re.match(r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})", value)
-    if match and match.group(2).lower() in _MONTHS:
-        try:
-            return date(int(match.group(3)), _MONTHS[match.group(2).lower()], int(match.group(1)))
-        except ValueError:
-            return None
+    # Search, not match: "Interest Payment Date falling on or nearest to 13 November 2032" holds
+    # the date. "1er", "13.", "13th" and the "de" of Spanish/Italian dates are skipped.
+    match = re.search(
+        r"(\d{1,2})(?:st|nd|rd|th|er|\.|º)?\s+(?:de\s+|di\s+|d')?([^\W\d_]+)\.?\s+(?:de\s+|del\s+)?(\d{4})",
+        value,
+        re.I,
+    )
+    if match:
+        month = month_number(match.group(2))
+        if month:
+            try:
+                return date(int(match.group(3)), month, int(match.group(1)))
+            except ValueError:
+                return None
     return None
 
 
+_UNIT_MILLION = ("million", "millionen", "millón", "millones", "milioni", "miljoen", "mm", "m", "mio", "mio.")
+_UNIT_BILLION = ("billion", "milliard", "milliarde", "milliards", "bn", "mrd", "mrd.")
+
+
 def parse_size_mm(value: str) -> float | None:
-    """'EUR 750,000,000', 'EUR 750m' and '750 million' all become 750.0."""
-    match = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(million|mm|m|billion|bn)?\b", value, re.IGNORECASE)
+    """'EUR 750,000,000', 'EUR 750m', '750 Millionen' and 'EUR 500.000.000' all become millions."""
+    # Digits may be grouped with spaces too ("750 000 000", French style).
+    match = re.search(
+        r"(\d{1,3}(?:[ \u00a0]\d{3})+(?:[.,]\d+)?|\d[\d.,]*)\s*([A-Za-zéóÉ.]+)?", value
+    )
     if not match:
         return None
-    number = float(match.group(1).replace(",", ""))
+    number = to_float(match.group(1).rstrip(".,"))
+    if number is None:
+        return None
     unit = (match.group(2) or "").lower()
-    if unit in ("billion", "bn"):
+    if unit in _UNIT_BILLION:
         return number * 1000
-    if unit in ("million", "mm", "m"):
+    if unit in _UNIT_MILLION:
         return number
     return number / 1_000_000 if number >= 1_000_000 else number
 
 
 # What a real amount looks like: a currency code next to digits, a unit, or a long grouped number.
 _AMOUNT = re.compile(
-    r"\b[A-Z]{3}\s*\d|\d\s*(?:million|mm|m|billion|bn)\b|\d{1,3}(?:,\d{3}){2,}", re.IGNORECASE
+    r"\b[A-Z]{3}\s*\d|\d\s*(?:million|millionen|millón|millones|milioni|miljoen|mm|m|mio\.?|billion|milliard|milliarde|bn|mrd\.?)\b|\d{1,3}(?:[.,\s ]\d{3}){2,}", re.IGNORECASE
 )
 
 # Currency names that appear instead of a code in some Final Terms ("Euro (\u201cEUR\u201d)").
-_CURRENCY_NAMES = {
-    "euro": "EUR",
-    "us dollar": "USD",
-    "u.s. dollar": "USD",
-    "pound sterling": "GBP",
-    "swiss franc": "CHF",
-}
+_CURRENCY_NAMES = CURRENCY_NAMES
 
 
 def looks_like_amount(value: str) -> bool:
@@ -132,8 +131,11 @@ def parse_currency(value: str) -> str | None:
 # The title of every Final Terms: "Issue of EUR 500,000,000 3.750 per cent. Senior Notes due
 # 25 January 2028 ... by <issuer> (the "Bank")". It is the most reliable place for the key terms.
 _HEADLINE = re.compile(
-    r"Issue\s+of\s+([A-Z]{3})\s*([\d,]+(?:\.\d+)?)\s*(?:([\d.]+)\s*per\s*cent\.?)?"
-    r"[A-Za-z\s-]{0,40}?Notes?\s+due\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})?",
+    # "Issue of EUR 1,500,000,000 4.750% Fixed to Floating Rate Senior Non Preferred Notes due ..."
+    # The coupon may be "3.750 per cent." or "4.750%", up to 70 characters of note description may
+    # follow, and the maturity may be a full date or only "November 2032" (then it stays empty).
+    r"Issue\s+of\s+([A-Z]{3})\s*([\d.,]+\d)\s*(?:([\d.,]+)\s*(?:per\s*cent\.?|%))?"
+    r"[A-Za-z\s-]{0,70}?Notes?\s+due\s+(?:(\d{1,2}\s+[A-Za-z]+\s+\d{4})|[A-Za-z]+\s+\d{4})?",
     re.IGNORECASE,
 )
 _HEADLINE_ISSUER = re.compile(
@@ -141,26 +143,93 @@ _HEADLINE_ISSUER = re.compile(
 )
 
 
+# Some issuers print a cover line without "Issue of": "EUR 15,000,000 3.375 per cent. Senior
+# Preferred Notes due 2036". It gives currency, size and coupon; a bare year is not a maturity date.
+_COVER_LINE = re.compile(
+    r"^\s*([A-Z]{3})\s*([\d.,]{5,})\s+([\d.,]+)\s*(?:per\s*cent\.?|%)\s+[A-Za-z ]{0,70}?Notes?\s+due\b",
+    re.MULTILINE,
+)
+
+_ISIN_SHAPE = re.compile(r"\b[A-Z]{2}[A-Z0-9]{9}\d\b")
+_LAW = re.compile(
+    r"\b(English|German|French|Italian|Spanish|Dutch|Swiss|Luxembourg|New York)\s+law\b", re.I
+)
+# The same statement in the other languages: "deutschem Recht", "droit français", "derecho español".
+_LAW_OTHER = re.compile(
+    r"\b(?:(?:deutsch|englisch|schweizer)\w*\s+recht|droit\s+(?:fran[cç]ais|anglais|allemand|luxembourgeois)"
+    r"|derecho\s+(?:espa[nñ]ol|ingl[eé]s|alem[aá]n)|diritto\s+(?:italiano|inglese|tedesco)"
+    r"|(?:nederlands|engels|duits)\s+recht)\b",
+    re.I,
+)
+_LAW_OTHER_CONTEXT = re.compile(
+    r"unterlieg|recht\s+der|soumis|gouvern|r[eé]gi|rige|sujet|regol|disciplin|beheerst|onderworpen",
+    re.I,
+)
+# Words that make a mention of a law a statement of the governing law, not just a reference.
+_LAW_CONTEXT = re.compile(r"governed|governing|applicable|subject\s+to|laws?\s+of", re.I)
+
+
+def scan_isin(text: str) -> str | None:
+    """Find the deal's ISIN anywhere in the text, whatever the layout or language.
+
+    Every candidate must pass the ISIN check digit, which removes look-alikes such as part numbers.
+    A candidate right after the word "ISIN" wins; otherwise the most repeated one does.
+    """
+    candidates = [m for m in _ISIN_SHAPE.finditer(text) if is_valid_isin(m.group(0))]
+    if not candidates:
+        return None
+    for m in candidates:
+        if "isin" in text[max(0, m.start() - 20) : m.start()].lower():
+            return m.group(0)
+    counts: dict[str, int] = {}
+    for m in candidates:
+        counts[m.group(0)] = counts.get(m.group(0), 0) + 1
+    return max(counts, key=lambda isin: counts[isin])  # ties keep the first one found
+
+
+def scan_governing_law(text: str) -> str | None:
+    """"German law" from a sentence such as "...governed by German law", when no row states it."""
+    for m in _LAW.finditer(text):
+        if _LAW_CONTEXT.search(text[max(0, m.start() - 80) : m.end()]):
+            return f"{m.group(1).title()} law"
+    for m in _LAW_OTHER.finditer(text):
+        if _LAW_OTHER_CONTEXT.search(text[max(0, m.start() - 120) : m.end() + 40]):
+            return m.group(0).strip().capitalize()
+    return None
+
+
 def _headline(text: str) -> TermSheetRecord:
     """Key terms from the "Issue of ... Notes due ..." title; all fields stay None without one."""
     match = _HEADLINE.search(text)
     if not match:
+        cover = _COVER_LINE.search(text)
+        if cover:
+            amount = to_float(cover.group(2)) or 0.0
+            return TermSheetRecord(
+                currency=cover.group(1).upper(),
+                size_mm=amount / 1_000_000 if amount >= 1_000_000 else amount,
+                coupon_pct=to_float(cover.group(3)),
+            )
         return TermSheetRecord()
-    amount = float(match.group(2).replace(",", ""))
+    amount = to_float(match.group(2)) or 0.0
     issuer = _HEADLINE_ISSUER.search(text[match.end() :])
     return TermSheetRecord(
         currency=match.group(1).upper(),
         size_mm=amount / 1_000_000 if amount >= 1_000_000 else amount,
-        coupon_pct=float(match.group(3)) if match.group(3) else None,
+        coupon_pct=to_float(match.group(3)) if match.group(3) else None,
         maturity=parse_date(match.group(4)) if match.group(4) else None,
         issuer=" ".join(issuer.group(1).split()) if issuer else None,
     )
 
 
+# "per cent", "%", and the same words in the other languages ("Prozent", "pour cent", "por ciento").
+_PERCENT = r"(?:%|per\s*cent\.?|prozent|pour\s*cent|por\s*ciento|per\s*cento|procent)"
+
+
 def parse_coupon(value: str) -> float | None:
-    """Read "3.375%" or the legal wording "3.750 per cent. per annum" as a percentage number."""
-    match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|per\s*cent)", value, re.IGNORECASE)
-    return float(match.group(1)) if match else None
+    """Read "3.375%", "3,375 %" or "3.750 per cent. per annum" as a percentage number."""
+    match = re.search(rf"(\d+(?:[.,]\d+)?)\s*{_PERCENT}", value, re.IGNORECASE)
+    return to_float(match.group(1)) if match else None
 
 
 def normalise_format(value: str) -> str:
@@ -181,7 +250,10 @@ _CONDITION_REF = re.compile(r"\(\s*Conditions?\s+[0-9][^)]*\)", re.I)
 _NEW_ROW = re.compile(r"^\(?[0-9]+[.)]\s")
 
 # A sub-row such as "(i) Series: EUR 500,000,000": its value belongs to the label above it.
-_SUB_ROW = re.compile(r"^\(?[ivx]+\)\s+[A-Za-z][A-Za-z /-]{1,40}:\s*(\S.*)$", re.I)
+# Some documents drop the numeral and print just "Series: EUR ..." / "Tranche: EUR ...".
+_SUB_ROW = re.compile(
+    r"^(?:\(?[ivx]+\)\s+[A-Za-z][A-Za-z /-]{1,40}|(?:Series|Tranche)):\s*(\S.*)$", re.I
+)
 
 # Text that is a label row ("Issue Price: 99.5") and therefore not the value we look for.
 _LABEL_ROW = re.compile(r"^[^:]{1,60}:\s")
@@ -248,6 +320,9 @@ def extract_with_rules(text: str) -> TermSheetRecord:
     if "isin" in values:
         match = re.search(r"[A-Z]{2}[A-Z0-9]{9}\d", values["isin"].upper())
         isin = match.group(0) if match else values["isin"].strip().upper()
+    if not isin or not is_valid_isin(isin):
+        # No usable "ISIN:" row (the label may have no colon, or sit in a table): look anywhere.
+        isin = scan_isin(text) or isin
 
     # Currency and size: the title wins when present, then the labelled rows. An amount row
     # that does not look like money is ignored, so a stray number never becomes the deal size.
@@ -274,5 +349,5 @@ def extract_with_rules(text: str) -> TermSheetRecord:
         maturity=maturity,
         format=normalise_format(values["format"]) if "format" in values else None,
         listing=values.get("listing"),
-        governing_law=values.get("governing_law"),
+        governing_law=values.get("governing_law") or scan_governing_law(text),
     )

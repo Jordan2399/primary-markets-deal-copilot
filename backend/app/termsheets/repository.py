@@ -30,10 +30,20 @@ RETURN d.id AS id, d.filename AS filename, d.deal_id AS deal_id, d.content_hash 
        d.extracted_by AS extracted_by, toString(d.extracted_at) AS extracted_at
 """
 
+# The term sheets linked to one deal, newest first. The full text is not returned.
+LIST_FOR_DEAL = """
+MATCH (:Deal {id: $deal_id})-[:HAS_DOCUMENT]->(d:Document {kind: 'termsheet'})
+RETURN d.id AS id, d.filename AS filename, d.method AS method, d.model AS model,
+       d.extracted_by AS extracted_by, toString(d.extracted_at) AS extracted_at,
+       d.extraction AS extraction
+ORDER BY d.extracted_at DESC
+"""
+
 
 class TermSheetRepository(Protocol):
     async def save(self, doc: StoredTermSheet, event: AuditEvent) -> None: ...
     async def get(self, doc_id: str) -> StoredTermSheet | None: ...
+    async def list_for_deal(self, deal_id: str) -> list[StoredTermSheet]: ...
 
 
 class Neo4jTermSheetRepository:
@@ -79,3 +89,22 @@ class Neo4jTermSheetRepository:
             extracted_by=r["extracted_by"],
             extracted_at=datetime.fromisoformat(r["extracted_at"]),
         )
+
+    async def list_for_deal(self, deal_id: str) -> list[StoredTermSheet]:
+        """Term sheets of a deal. `text` is left empty: the list does not need the document body."""
+        rows = await self._db.read(LIST_FOR_DEAL, {"deal_id": deal_id})
+        return [
+            StoredTermSheet(
+                id=r["id"],
+                filename=r["filename"],
+                deal_id=deal_id,
+                content_hash="",
+                text="",
+                record=TermSheetRecord(**json.loads(r["extraction"])),
+                method=r["method"],
+                model=r["model"],
+                extracted_by=r["extracted_by"],
+                extracted_at=datetime.fromisoformat(r["extracted_at"]),
+            )
+            for r in rows
+        ]

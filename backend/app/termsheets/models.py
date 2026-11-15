@@ -51,6 +51,20 @@ class ExtractionOut(BaseModel):
     model_error: str | None = None  # why the model gave no answer (rules were used instead)
     model_skipped: bool = False  # True when the rules found every required field
     filled_by_model: list[str] = Field(default_factory=list)  # fields only the model filled
+    language: str = "en"  # detected document language: en, de, fr, es, it or nl
+
+
+class DocumentSummary(BaseModel):
+    """A term sheet linked to a deal, for the deal's Documents tab (no full text)."""
+
+    id: str
+    filename: str
+    method: str
+    model: str | None
+    extracted_by: str
+    extracted_at: datetime
+    issuer: str | None
+    isin: str | None
 
 
 class Check(BaseModel):

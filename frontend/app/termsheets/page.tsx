@@ -5,6 +5,7 @@ import DealSelect from "@/components/DealSelect";
 import { ErrorBox, Pill } from "@/components/ui";
 import { api } from "@/lib/client";
 import { label } from "@/lib/format";
+import { dealFromUrl } from "@/lib/session-utils";
 import type { DiffRow, Extraction, ValidationReport } from "@/lib/types";
 
 const FIELD_NAMES: Record<string, string> = {
@@ -12,6 +13,9 @@ const FIELD_NAMES: Record<string, string> = {
   coupon_pct: "Coupon (%)", maturity: "Maturity", format: "Format",
   issue_date: "Issue date", listing: "Listing", governing_law: "Governing law",
 };
+
+// Fields every term sheet must state. A gap here is a problem; a gap in the others is just "not stated".
+const REQUIRED = new Set(["issuer", "isin", "currency", "size_mm", "coupon_pct", "maturity"]);
 
 // The order of the "Extracted deal" card: the six required fields first, then the extras.
 const RECORD_FIELDS = [
@@ -28,13 +32,24 @@ function statusText(status: DiffRow["status"]): { text: string; tone: "good" | "
 /** The two ways to give the lab a document. Only one is active at a time. */
 type Mode = "text" | "file";
 
+// Display names of the languages the backend detects.
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English",
+  de: "German",
+  fr: "French",
+  es: "Spanish",
+  it: "Italian",
+  nl: "Dutch",
+};
+
 export default function TermSheetLab() {
   // One input at a time: switching the mode throws away the other input, so what is sent is
   // always exactly what the page shows.
   const [mode, setMode] = useState<Mode>("text");
   const fileInput = useRef<HTMLInputElement | null>(null);
   // No deal is preselected: a fixed id would break on any database that does not contain it.
-  const [dealId, setDealId] = useState("");
+  // A link from a deal's Documents tab (?deal=D-...) preselects that deal; otherwise none.
+  const [dealId, setDealId] = useState(dealFromUrl);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
@@ -93,7 +108,9 @@ export default function TermSheetLab() {
     }
   }
 
-  const failedChecks = report?.checks.filter((c) => !c.ok) ?? [];
+  // Errors make the document wrong; warnings only ask for a second look (e.g. an unusual size).
+  const errorChecks = report?.checks.filter((c) => !c.ok && c.severity === "error") ?? [];
+  const warningChecks = report?.checks.filter((c) => !c.ok && c.severity !== "error") ?? [];
   return (
     <main className="container wide">
       <h1>Term sheet lab</h1>
@@ -116,7 +133,7 @@ export default function TermSheetLab() {
           </label>
         ) : (
           <div className="dropzone">
-            <p className="muted small">.txt, .md or .pdf, up to 2 MB and 40 pages. Long PDFs are cleaned (headers, footers, page numbers) and only the passages with the terms are read by the model.</p>
+            <p className="muted small">.txt, .md or .pdf, up to 5 MB and 150 pages, in English, German, French, Spanish, Italian or Dutch (other languages are read by the model). Long PDFs are cleaned (headers, footers, page numbers) and only the passages with the terms are read by the model.</p>
             <input ref={fileInput} type="file" accept=".txt,.md,.pdf" onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
             {file && (
               <p className="small">
@@ -151,8 +168,8 @@ export default function TermSheetLab() {
                 : extraction.model
                   ? `${extraction.model} (${extraction.method})`
                   : "fixed rules"}
-              ; document {extraction.document_id}.
-              {extraction.model && extraction.focused && ` The model read ${extraction.model_chars.toLocaleString()} of ${extraction.text_chars.toLocaleString()} characters.`}
+              ; document {extraction.document_id}, language {LANGUAGE_NAMES[extraction.language] ?? extraction.language}.
+              {extraction.model && extraction.focused && ` The model read ${extraction.model_chars.toLocaleString("en-GB")} of ${extraction.text_chars.toLocaleString("en-GB")} characters.`}
               {extraction.filled_by_model.length > 0 && ` Filled by the model: ${extraction.filled_by_model.map((f) => FIELD_NAMES[f] ?? f).join(", ")}.`}
             </p>
             {extraction.model_error && (
@@ -199,12 +216,16 @@ export default function TermSheetLab() {
                   const value = extraction.record[field];
                   // A field only the model filled is marked; everything else came from the rules
                   // or, in "always" mode, from the model with the rules as back-up.
+                  // In "rules first" mode (method starts with "rules") every field the model did not fill
+                  // came from the fixed rules. Only when the model read the whole excerpt first
+                  // ("llm" or "llm+rules") is a field credited to the model.
+                  const rulesFirst = extraction.method.startsWith("rules");
                   const readBy = value === null ? "" : extraction.filled_by_model.includes(field)
-                    ? "model" : extraction.model && !extraction.model_skipped ? extraction.model : "fixed rules";
+                    ? (extraction.model ?? "model") : !rulesFirst && extraction.model ? extraction.model : "fixed rules";
                   return (
-                    <tr key={field} className={value === null ? "row-bad" : ""}>
+                    <tr key={field} className={value === null && REQUIRED.has(field) ? "row-bad" : ""}>
                       <td>{FIELD_NAMES[field]}</td>
-                      <td>{value === null ? "not found" : String(value)}</td>
+                      <td>{value === null ? <span className={REQUIRED.has(field) ? undefined : "muted"}>{REQUIRED.has(field) ? "not found" : "not stated"}</span> : String(value)}</td>
                       <td className="muted small">{readBy}</td>
                     </tr>
                   );
@@ -214,7 +235,7 @@ export default function TermSheetLab() {
           </section>
 
           <section className="card">
-            <h2>Validation checks ({failedChecks.length} failed of {report.checks.length})</h2>
+            <h2>Validation checks ({errorChecks.length} failed, {warningChecks.length} {warningChecks.length === 1 ? "warning" : "warnings"}, of {report.checks.length})</h2>
             <ul className="checks">
               {report.checks.map((c, i) => (
                 <li key={i} className={c.ok ? "" : c.severity === "error" ? "check-bad" : "check-warn"}>

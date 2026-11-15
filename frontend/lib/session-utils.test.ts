@@ -25,9 +25,11 @@ describe("linksFor", () => {
     expect(labels("viewer")).not.toContain("Order book");
     expect(labels("syndicate")).toContain("Allocation");
     expect(labels("marketer")).not.toContain("Allocation");
+    expect(labels("viewer")).not.toContain("Investors");
+    expect(labels("marketer")).toContain("Investors");
   });
   it("shows everything to admin", () => {
-    expect(labels("admin")).toHaveLength(7);
+    expect(labels("admin")).toHaveLength(8);
   });
 });
 

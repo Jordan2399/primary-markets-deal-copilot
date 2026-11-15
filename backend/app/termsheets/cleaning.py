@@ -42,7 +42,13 @@ _ANCHORS = re.compile(
     r"issuer|isin|specified currency|currency|aggregate nominal amount|principal amount|"
     r"issue size|rate of interest|interest rate|coupon|issue date|settlement date|"
     r"maturity date|listing|admission to trading|governing law|selling restrictions|"
-    r"regulation s|rule 144a|issue of|notes due|per cent",
+    r"regulation s|rule 144a|issue of|notes due|per cent|"
+    # German, French, Spanish, Italian, Dutch
+    r"emittentin|währung|gesamtnennbetrag|zinssatz|fälligkeit|anwendbares recht|"
+    r"émetteur|devise|montant nominal|taux d.intérêt|échéance|droit applicable|"
+    r"emisor|divisa|importe nominal|tipo de interés|vencimiento|ley aplicable|"
+    r"emittente|valuta|importo nominale|tasso di interesse|scadenza|legge applicabile|"
+    r"uitgevende|hoofdsom|rentevoet|vervaldatum|toepasselijk recht",
     re.I,
 )
 
@@ -133,16 +139,23 @@ def _continues_previous(previous: str, line: str) -> bool:
 
 # Where each required field is usually stated. Used to read only the passages for missing fields.
 _FIELD_ANCHORS: dict[str, re.Pattern[str]] = {
-    "issuer": re.compile(r"issuer|issue of|\bby\b.{0,60}\(the", re.I),
+    "issuer": re.compile(r"issuer|issue of|emittentin|émetteur|emisor|emittente|uitgevende|\bby\b.{0,60}\(the", re.I),
     "isin": re.compile(r"isin|common code|\b[A-Z]{2}[A-Z0-9]{9}\d\b"),
-    "currency": re.compile(r"specified currency|currency|issue of", re.I),
+    "currency": re.compile(r"specified currency|currency|währung|devise|divisa|moneda|valuta|issue of", re.I),
     "size_mm": re.compile(
-        r"aggregate nominal amount|principal amount|issue size|issue of|nominal amount", re.I
+        r"aggregate nominal amount|principal amount|issue size|issue of|nominal amount|"
+        r"gesamtnennbetrag|montant nominal|importe nominal|importo nominale|hoofdsom",
+        re.I
     ),
     "coupon_pct": re.compile(
-        r"rate of interest|interest rate|interest basis|coupon|per cent", re.I
+        r"rate of interest|interest rate|interest basis|coupon|per cent|zinssatz|taux d.intérêt|"
+        r"tipo de interés|tasso di interesse|rentevoet",
+        re.I
     ),
-    "maturity": re.compile(r"maturity date|notes due|maturity", re.I),
+    "maturity": re.compile(
+        r"maturity date|notes due|maturity|fälligkeit|échéance|vencimiento|scadenza|vervaldatum",
+        re.I,
+    ),
 }
 
 # The model is only asked about the gaps, so a much smaller excerpt is enough.
