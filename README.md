@@ -220,11 +220,6 @@ docker-compose.yml  base stack; dev and prod overrides alongside
 Module rule for later scaling: modules never import each other's internals and each owns its own
 data access, so any module can be split into a service later.
 
-## How this project was built
-
-It was built with AI assistance (Claude), working from a written scope and plan, and then reviewed,
-run and understood by the author. The commit history and `docs/day-1-guide.md` show the decisions.
-Anyone reading this repository should be told that plainly, and this section does so.
 
 ## Limits
 
