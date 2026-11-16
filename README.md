@@ -1,31 +1,56 @@
 # Primary Markets Deal Copilot
 
-A full-stack demo for bond primary markets: deal workflow, order book and allocation, term sheet
-extraction and validation, and an investor appetite graph. It runs locally with open-source LLMs
+A full-stack application for bond primary markets: deal workflow, order book and allocation, term sheet
+extraction and validation, an investor network and an assistant that answers with sources. It runs locally with open-source LLMs
 (Ollama), a Neo4j graph database, a FastAPI backend and a Next.js frontend.
 
-> **All data in this project is synthetic.** It uses no real client, investor or market data and
-> connects to no bank system. It is a portfolio project, not a production banking system.
+## What it does
+
+- **Deal pipeline and workspace:** eight stages from mandate to booking, tasks with owners and
+  dependencies, readiness checks before a stage can advance.
+- **Order book:** demand by spread, investor type and region, with anomaly detection.
+- **Allocation:** an exact, tested engine with a four-eyes approval (the proposer cannot approve).
+- **Term sheets:** PDF or text in six languages; fixed rules first, the model only for gaps, then
+  validation against the deal.
+- **Investors:** directory, profiles, a deal's investor network and an explainable target list.
+- **Copilot:** answers from the deal data and a process playbook, with cited sources and a saved history.
+- **Reports, admin console and search:** management roll-ups with CSV and print, users and roles, Ctrl+K.
+- **Controls:** five roles enforced on the server, an audit trail of every change and every AI answer.
+- **Runs anywhere:** Docker Compose for development, Kubernetes manifests for a cluster.
+
+| Pipeline | Order book | Investor network |
+|---|---|---|
+| ![Pipeline](docs/images/pipeline.png) | ![Order book](docs/images/deal-orderbook.png) | ![Investors](docs/images/deal-investors.png) |
+
+| Reports | Term sheets | Admin |
+|---|---|---|
+| ![Reports](docs/images/reports.png) | ![Term sheets](docs/images/termsheets.png) | ![Admin](docs/images/admin.png) |
 
 ## Status
 
-| Day | Scope | State |
+| Step | Scope | State |
 | --- | --- | --- |
-| 0 | Repo, Docker Compose (dev and prod), FastAPI health endpoint, Next.js status page, CI | **done** |
-| 1 | Neo4j schema, seed data, deals and audit modules, LLM client, Lifecycle Copilot with sources, pipeline / workspace / Copilot / audit pages | **done** (see [docs/day-1-guide.md](docs/day-1-guide.md)) |
-| 2 | Order book, allocation engine with four-eyes approval, term sheet extraction and validation | **done** (see [docs/day-2-guide.md](docs/day-2-guide.md)) |
-| 2b | Sign-in with roles, saved Copilot conversations with follow-ups, banking-style UI (light and dark) | **done** (see [docs/day-2b-guide.md](docs/day-2b-guide.md)) |
-| 3 | Investor graph, evaluation, polish, demo | planned |
+| 0 | Repo, Docker Compose (dev and prod), health endpoint, CI | **done** |
+| 1 | Neo4j schema, seed data, deals, audit, LLM client, Copilot with sources | **done** ([guide](docs/day-1-guide.md)) |
+| 2 | Order book, allocation with four-eyes approval, term sheet extraction | **done** ([guide](docs/day-2-guide.md)) |
+| 2b | Sign-in with roles, saved conversations, banking-style UI | **done** ([guide](docs/day-2b-guide.md)) |
+| 3a | PDF term sheets, cleaning, rules before the model | **done** ([guide](docs/day-3a-guide.md)) |
+| 3b | Investors, deal workspace, multi-language term sheets | **done** ([guide](docs/day-3b-guide.md)) |
+| 3c | Reports, admin console, search, evaluation, new sign-in and logo | **done** ([guide](docs/day-3c-guide.md)) |
+| K8s | Kubernetes manifests, build and deploy scripts, image workflow | **written, not yet run on a cluster** ([guide](docs/kubernetes-guide.md)) |
+| Next | Users and desks in Neo4j, live public data (GLEIF, ECB, EDGAR), several agents | planned |
+
+More: [architecture](docs/architecture.md), [evaluation](docs/evaluation.md), [demo script](docs/demo-script.md).
+
+> **All data in this project is synthetic.** It uses no real client, investor or market data and
+> connects to no bank system. It is a portfolio project, not a production banking system. It was
+> built with AI assistance (see the end of this file).
 
 ## Architecture
 
-```
-Browser -> Next.js (3000) --/api proxy--> FastAPI (8000) -> Neo4j (7687)
-                                               |
-                                               +-> Ollama on the host GPU (11434)
-```
+![Architecture](docs/images/architecture.png)
 
-Ollama runs natively on the host (not in Docker) so it can use the GPU. Containers reach it at
+Ollama runs natively on the host (not in Docker) so it can use the GPU; containers reach it at
 `http://host.docker.internal:11434`. Only the API talks to Neo4j and Ollama.
 
 ## Prerequisites (Windows)
@@ -69,7 +94,7 @@ Ollama runs natively on the host (not in Docker) so it can use the GPU. Containe
    `... --profile tools build seed`, then the run command above.
 
 5. Open http://localhost:3000 and **sign in** (see below), then:
-   - Frontend: http://localhost:3000 (pipeline), `/orderbook`, `/allocation`, `/termsheets`, `/copilot`, `/audit`, `/status`
+   - Frontend: http://localhost:3000 (pipeline), `/orderbook`, `/allocation`, `/investors`, `/reports`, `/termsheets`, `/copilot`, `/audit`, `/admin`, `/status`
    - API docs: http://localhost:8000/docs
    - API health: http://localhost:8000/api/v1/health
    - Neo4j Browser: http://localhost:7474 (user `neo4j`, password from `.env.dev`)
@@ -84,7 +109,7 @@ Day 2: open **Allocation** with `D-2026-009` and check the sum equals the deal s
 | `marco.approver` | approver: approve allocation |
 | `mia.marketer` | marketer: create and edit deals |
 | `vera.viewer` | viewer: read and Copilot |
-| `admin.user` | admin: audit trail |
+| `admin.user` | admin: audit trail, admin console |
 
 Password: `DEMO_USER_PASSWORD` from `.env.dev`, or `DealCopilot-Demo-1` when it is empty. These are
 development accounts for synthetic data. Production needs its own `JWT_SECRET` (see `.env.prod.example`).
@@ -149,6 +174,22 @@ npm install
 npm run dev
 ```
 
+## Kubernetes
+
+The application also runs on any Kubernetes cluster: manifests for Neo4j, the API, the web app and
+the ingress, a local and a production overlay, and scripts to build, push and deploy the images.
+See [docs/kubernetes-guide.md](docs/kubernetes-guide.md).
+
+## Evaluation
+
+```powershell
+cd backend
+python -m app.evals termsheets      # offline: 49 of 49 fields right (a regression set)
+python -m app.evals copilot --password <password>   # needs the running stack
+```
+
+See [docs/evaluation.md](docs/evaluation.md) for what is and is not measured.
+
 ## Quality checks
 
 ```powershell
@@ -160,18 +201,20 @@ cd frontend; npm run lint; npm test; npm run build
 `backend/tests/test_integration_neo4j.py`); CI runs them against a Neo4j service container.
 
 CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull request to `main` and
-`develop`, and validates both Compose stacks.
+`develop`, validates both Compose stacks and checks the Kubernetes manifests.
 
 ## Repository layout
 
 ```
 backend/            FastAPI app: core, health, and one folder per module
-  app/deals/ documents/ copilot/ llm/ audit/ seed/ db/ common/   (day 1)
-  app/orderbook/ investors/                                      (planned)
+  app/deals/ orderbook/ allocation/ investors/ termsheets/ copilot/   (domain modules)
+  app/reports/ admin/ search/ audit/ auth/ evals/                     (roll-ups, governance, quality)
 frontend/           Next.js (App Router, TypeScript)
+deploy/             Kubernetes manifests (Kustomize) and build/deploy scripts
+docs/               guides, architecture, evaluation, demo script, images
 scripts/            check-env.ps1 (Windows environment check)
 docker-compose.yml  base stack; dev and prod overrides alongside
-.github/workflows/  CI
+.github/workflows/  CI and image build
 ```
 
 Module rule for later scaling: modules never import each other's internals and each owns its own
@@ -185,6 +228,6 @@ Anyone reading this repository should be told that plainly, and this section doe
 
 ## Limits
 
-This is a demo. A real bank would additionally need identity and entitlements (SSO), a security and
+This is a portfolio project on synthetic data. A real bank would additionally need identity and entitlements (SSO), a security and
 model-risk review, data governance, resilience and performance testing, and integration with the real
 systems of record.

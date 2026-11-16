@@ -336,3 +336,39 @@ export type DocumentSummary = {
   issuer: string | null;
   isin: string | null;
 };
+
+// ---- Reports, admin console and search (Day 3c) ----
+
+export type Kpis = {
+  active_deals: number; in_market: number; completed_deals: number; orders: number;
+  investors_active: number; avg_cover: number | null; pending_approvals: number; blocking_tasks: number;
+};
+export type StageRow = { code: string; name: string; position: number; deals: number };
+export type CurrencyVolume = { currency: string; deals: number; size_mm: number };
+export type BookRow = {
+  deal_id: string; name: string; issuer: string; currency: string; size_mm: number; stage_name: string;
+  launch_date: string | null; tasks_done: number; tasks_total: number; blockers_open: number;
+  orders: number; investors: number; demand_k: number; cover: number | null; allocated_k: number;
+  allocation_state: "PROPOSED" | "APPROVED" | null;
+};
+export type Mix = { label: string; demand_k: number; share_pct: number };
+export type ActivityDay = { day: string; events: number };
+export type CountRow = { label: string; count: number };
+export type ReportOverview = {
+  generated_at: string; kpis: Kpis; stages: StageRow[]; volume: CurrencyVolume[]; books: BookRow[];
+  mix_by_type: Mix[]; mix_by_region: Mix[]; activity: ActivityDay[]; top_actions: CountRow[];
+};
+
+export type UserActivity = {
+  username: string; display_name: string; role: Role; active: boolean; actions: number; last_action: string | null;
+};
+export type AdminOverview = {
+  users: UserActivity[]; roles: { role: Role; users: number }[];
+  events_total: number; ai_calls: number; sign_ins: number; failed_sign_ins: number;
+};
+
+export type SearchResults = {
+  query: string;
+  deals: { id: string; name: string; issuer: string; stage: string }[];
+  investors: { id: string; name: string; type: string; region: string }[];
+};

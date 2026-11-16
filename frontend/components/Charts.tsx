@@ -91,3 +91,47 @@ export function BarList({ buckets, title }: { buckets: Bucket[]; title: string }
     </div>
   );
 }
+
+/** Deals per stage as horizontal bars, in process order (a funnel without the funnel shape). */
+export function StageBars({ stages }: { stages: { code: string; name: string; deals: number }[] }) {
+  const max = Math.max(...stages.map((s) => s.deals), 1);
+  return (
+    <ul className="bars stage-bars" aria-label="Deals per stage">
+      {stages.map((s) => (
+        <li key={s.code}>
+          <span className="bar-label">{s.name}</span>
+          <span className="bar-track"><span className="bar-fill" style={{ width: `${(s.deals / max) * 100}%` }} /></span>
+          <span className="bar-value">{s.deals}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** One column per day. The numbers are printed under the chart in the table-free summary line. */
+export function ActivityColumns({ days }: { days: { day: string; events: number }[] }) {
+  const max = Math.max(...days.map((d) => d.events), 1);
+  const total = days.reduce((sum, d) => sum + d.events, 0);
+  const width = 520;
+  const height = 120;
+  const gap = 6;
+  const barWidth = (width - gap * (days.length - 1)) / Math.max(days.length, 1);
+  return (
+    <figure className="activity">
+      <svg viewBox={`0 0 ${width} ${height + 18}`} role="img" aria-label={`Activity in the last ${days.length} days: ${total} events`} className="chart">
+        {days.map((d, i) => {
+          const h = Math.max((d.events / max) * height, d.events ? 3 : 1);
+          return (
+            <g key={d.day}>
+              <title>{`${d.day}: ${d.events} events`}</title>
+              <rect x={i * (barWidth + gap)} y={height - h} width={barWidth} height={h} rx={2} className={d.events ? "col" : "col empty"} />
+            </g>
+          );
+        })}
+        <text x={0} y={height + 14} className="tick">{days[0]?.day.slice(5)}</text>
+        <text x={width} y={height + 14} textAnchor="end" className="tick">{days[days.length - 1]?.day.slice(5)}</text>
+      </svg>
+      <figcaption className="muted small">{total} recorded events in {days.length} days</figcaption>
+    </figure>
+  );
+}

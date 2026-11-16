@@ -1,0 +1,5 @@
+# Everything lives in its own namespace so it can be listed, limited or deleted as one unit.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dealcopilot

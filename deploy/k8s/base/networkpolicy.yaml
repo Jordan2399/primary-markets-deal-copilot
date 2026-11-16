@@ -1,0 +1,34 @@
+# Who may talk to whom inside the cluster. Only incoming traffic is restricted, so calls to an
+# Ollama outside the cluster or to the internet keep working. (Needs a network plugin that
+# enforces policies, such as Calico or Cilium; on others the rules are accepted and ignored.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: neo4j-from-api-only
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: neo4j}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: api}
+        - podSelector:
+            matchLabels: {app.kubernetes.io/component: seed}
+      ports:
+        - {port: 7687}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-from-frontend-only
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: api}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: frontend}
+      ports:
+        - {port: 8000}

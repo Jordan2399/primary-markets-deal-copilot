@@ -22,9 +22,11 @@ export const NAV_LINKS: NavLink[] = [
   { href: "/orderbook", label: "Order book", roles: ["syndicate", "approver", "admin"] },
   { href: "/allocation", label: "Allocation", roles: ["syndicate", "approver", "admin"] },
   { href: "/investors", label: "Investors", roles: ["marketer", "syndicate", "approver"] },
+  { href: "/reports", label: "Reports", roles: "all" },
   { href: "/termsheets", label: "Term sheets", roles: "all" },
   { href: "/copilot", label: "Copilot", roles: "all" },
   { href: "/audit", label: "Audit", roles: ["admin"] },
+  { href: "/admin", label: "Admin", roles: ["admin"] },
   { href: "/status", label: "Status", roles: "all" },
 ];
 
@@ -59,3 +61,22 @@ export function dealFromUrl(): string {
   // Only plain id characters are accepted, so a crafted link cannot inject anything.
   return /^[A-Za-z0-9-]{1,60}$/.test(value) ? value : "";
 }
+
+/** One line of the access table on the admin page: what a person can do and which roles may. */
+export type Permission = { label: string; roles: Role[] };
+
+/**
+ * Mirrors the rules the API enforces (the require_roles checks in the backend routers).
+ * Administrators pass every check. If a backend rule changes, change this table too; the unit
+ * test only guards that the admin column stays complete.
+ */
+export const PERMISSIONS: Permission[] = [
+  { label: "Read the pipeline, term sheets, reports and the Copilot", roles: ["viewer", "marketer", "syndicate", "approver", "admin"] },
+  { label: "Create deals", roles: ["marketer", "admin"] },
+  { label: "Update tasks and advance stages", roles: ["marketer", "syndicate", "admin"] },
+  { label: "Investor directory and profiles", roles: ["marketer", "syndicate", "approver", "admin"] },
+  { label: "Read order books and allocations", roles: ["syndicate", "approver", "admin"] },
+  { label: "Simulate books and propose allocations", roles: ["syndicate", "admin"] },
+  { label: "Approve allocations (four-eyes)", roles: ["approver", "admin"] },
+  { label: "Audit trail and admin console", roles: ["admin"] },
+];

@@ -68,7 +68,7 @@ export default function InvestorDirectory() {
   return (
     <main className="container wide">
       <h1>Investors</h1>
-      <p className="muted">The investor base behind the order books: who they are, what they usually buy, and what they did on each deal. All investors are synthetic.</p>
+      <p className="muted">The investor base behind the order books: who they are, what they usually buy, and what they did on each deal.</p>
 
       <div className="filters" role="search">
         <label>Search

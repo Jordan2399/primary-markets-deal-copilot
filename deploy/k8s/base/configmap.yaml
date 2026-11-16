@@ -1,0 +1,28 @@
+# Non-secret settings. The names are the same as in docker-compose.yml.
+# Passwords and the signing key are NOT here; they come from the Secret "dealcopilot-secrets"
+# that the deploy script creates from deploy/k8s/secrets.env (see docs/kubernetes-guide.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dealcopilot-config
+data:
+  APP_ENV: production
+  LOG_LEVEL: INFO
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USER: neo4j
+  LLM_PROVIDER: ollama
+  # "ollama" is the in-cluster service from components/ollama. Overlays that use an Ollama
+  # outside the cluster (for example on a GPU machine) override this value.
+  OLLAMA_BASE_URL: http://ollama:11434
+  LLM_CHAT_MODEL: qwen2.5:7b-instruct
+  LLM_EMBED_MODEL: nomic-embed-text
+  LLM_TIMEOUT_SECONDS: "300"
+  TERMSHEET_MODEL_MODE: gaps
+  AUTH_MODE: jwt
+  JWT_TTL_MINUTES: "480"
+  # The address people type in the browser; overlays set the real one.
+  CORS_ORIGINS: http://localhost
+  # Used only by the frontend: where the Next.js server finds the API inside the cluster.
+  API_INTERNAL_URL: http://api:8000
+  # "true" when the site is served over HTTPS, so the session cookie is marked Secure.
+  COOKIE_SECURE: "false"

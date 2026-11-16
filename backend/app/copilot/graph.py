@@ -35,7 +35,7 @@ from app.copilot.prompts import (
     user_message,
 )
 from app.core.errors import NotFoundError
-from app.deals.models import LaunchReadiness, Task
+from app.deals.models import LaunchReadiness, Task, Tranche
 from app.deals.service import DealService
 from app.documents.service import DocumentService
 from app.llm.base import ChatMessage, LLMError, LLMProvider
@@ -79,7 +79,9 @@ def _task_line(task: Task) -> str:
     )
 
 
-def _deal_source(readiness: LaunchReadiness, number: int) -> Source:
+def _deal_source(
+    readiness: LaunchReadiness, number: int, tranches: list[Tranche] | None = None
+) -> Source:
     """Evidence S<number> that summarises the deal itself (stage, dates, task counts, readiness)."""
     deal = readiness.deal
     ready = "yes" if readiness.ready_to_launch else "no"
@@ -90,6 +92,9 @@ def _deal_source(readiness: LaunchReadiness, number: int) -> Source:
         f"{readiness.open_before_launch} (blocking: {readiness.blocking_open_before_launch}) | "
         f"ready to launch: {ready}"
     )
+    for tranche in tranches or []:
+        snippet += f" | tranche: {tranche.tenor_years}Y, format {tranche.format}"
+
     return Source(
         id=f"S{number}",
         type="deal",
@@ -161,6 +166,12 @@ def build_copilot_graph(deals: DealService, docs: DocumentService, llm: LLMProvi
         except LLMError:
             intent = keyword_intent(question)  # simple keyword rules when the model fails
 
+        # A small model sometimes calls a question about the selected deal's facts out of scope.
+        # When a deal is selected and the wording clearly concerns the deal, trust the keywords.
+        if intent == "out_of_scope" and request.deal_id:
+            guess = keyword_intent(question)
+            if guess in ("deal", "both"):
+                intent = guess
         # Out of scope: answer with a fixed polite message, no model call.
         if intent == "out_of_scope":
             return {"intent": intent, "direct_answer": OUT_OF_SCOPE_ANSWER, "sources": []}
@@ -177,7 +188,12 @@ def build_copilot_graph(deals: DealService, docs: DocumentService, llm: LLMProvi
             readiness = await deals.launch_readiness(request.deal_id)
         except NotFoundError:
             return {"direct_answer": DEAL_NOT_FOUND_ANSWER}
-        sources = [_deal_source(readiness, 1)]  # S1 is always the deal summary
+        # S1 is always the deal summary, with the tranche facts (format, tenor) from the deal detail.
+        try:
+            tranches = (await deals.get_deal(request.deal_id)).tranches
+        except NotFoundError:
+            tranches = []
+        sources = [_deal_source(readiness, 1, tranches)]
         # Then the most relevant open tasks, each numbered S2, S3, ... so the model can cite them.
         for task in _prioritise(readiness.open_tasks)[:MAX_TASK_SOURCES]:
             sources.append(

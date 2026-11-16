@@ -27,6 +27,7 @@ from app.investors.service import InvestorService
 from app.llm.base import LLMProvider
 from app.orderbook.repository import Neo4jOrderBookRepository
 from app.orderbook.service import OrderBookService
+from app.reports.service import ReportService
 from app.termsheets.repository import Neo4jTermSheetRepository
 from app.termsheets.service import TermSheetService
 
@@ -117,3 +118,12 @@ def get_termsheet_service(
     return TermSheetService(
         Neo4jTermSheetRepository(db), deals, llm, audit, model_mode=config.termsheet_model_mode
     )
+
+
+def get_report_service(
+    db: Db,
+    deals: Annotated[DealService, Depends(get_deal_service)],
+    allocation: Annotated[AllocationService, Depends(get_allocation_service)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ReportService:
+    return ReportService(deals, Neo4jInvestorRepository(db), allocation, audit)
