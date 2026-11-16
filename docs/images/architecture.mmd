@@ -1,0 +1,23 @@
+flowchart TB
+  user(["User in a browser<br/>five roles"])
+  web["Next.js web app<br/>sign-in, pages, /api proxy"]
+  api["FastAPI<br/>token check, role rules, audit trail"]
+  user -->|HTTPS| web
+  web -->|"session cookie becomes bearer token"| api
+
+  subgraph modules ["API modules (each owns its data access)"]
+    m1["Deals<br/>and tasks"]
+    m2["Order book<br/>anomaly checks"]
+    m3["Allocation<br/>four-eyes approval"]
+    m4["Term sheets<br/>rules first, model for gaps"]
+    m5["Investors<br/>scoring, network"]
+    m6["Reports, admin,<br/>search"]
+    m7["Copilot<br/>LangGraph"]
+  end
+  api --> modules
+
+  db[("Neo4j<br/>deals, books, allocations, investors,<br/>users, audit, playbook vectors")]
+  llm["Ollama on a GPU host<br/>qwen2.5 7B and nomic-embed-text"]
+  modules --> db
+  m7 -->|"chat and embeddings"| llm
+  m4 -->|"only missing fields"| llm

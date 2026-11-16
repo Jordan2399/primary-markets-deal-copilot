@@ -1,0 +1,115 @@
+[
+ {
+  "id": "en-final-terms-table",
+  "language": "en",
+  "source": "flattened Final Terms table (title sentence, condition references)",
+  "text": "Final Terms dated 23 January 2023 (A bank governed by the Example Act)\n(LEI: 123456789012345678AB) Issue of EUR 500,000,000 3.750 per cent. Senior Notes due 25 January 2028\n(the \"Notes\") under a US$10,000,000,000 Euro Note Programme by the London Branch of Example Bank plc\n(the \"Bank\")\nPART A - CONTRACTUAL TERMS\n1. (i) Series Number: 2023-6 (Condition 1)\n(ii) Tranche Number: 1\n(Condition 1)\n(iii) Date on which the Notes Not Applicable will be consolidated and form a single Series:\n(Condition 1) Euro (\"EUR\")\n2. Specified Currency or Currencies:\n(Condition 1)\n3. Aggregate Nominal Amount:\n(Condition 1)\n(i) Series: EUR 500,000,000\n(ii) Tranche: EUR 500,000,000\n4. Issue Price: 99.517 per cent. of the Aggregate Nominal Amount\n(Condition 5)\n5. (ii) Calculation Amount: EUR 1,000\n(Condition 4)\n6. (i) Issue Date: 25 January 2023 (Condition 4)\n(ii) Trade Date: 18 January 2023\n7. Maturity Date: 25 January 2028\n(Condition 5)\n8. Interest Basis: 3.750 per cent. Fixed Rate Note\n(Condition 4) (further particulars specified below)\nISIN: XS2579324869\n",
+  "expected": {
+   "issuer": "Example Bank plc",
+   "isin": "XS2579324869",
+   "currency": "EUR",
+   "size_mm": 500.0,
+   "coupon_pct": 3.75,
+   "maturity": "2028-01-25"
+  }
+ },
+ {
+  "id": "en-bnpp-layout",
+  "language": "en",
+  "source": "second issuer layout (per cent as %, series line, maturity inside a sentence)",
+  "text": "FINAL TERMS DATED 8 NOVEMBER 2023\nBNP Paribas\nIssue of EUR 1,500,000,000 4.750% Fixed to Floating Rate Senior Non Preferred Notes due November 2032\nunder the EUR 90,000,000,000 Euro Medium Term Note Programme\n1. Issuer: BNP Paribas\n2. (i) Trade Date: 6 November 2023\n(ii) Series Number: 20052\n(iii) Tranche Number: 1\n3. Specified Currency: Euro (\"EUR\")\n4. Aggregate Nominal Amount:\nSeries: EUR 1,500,000,000\nTranche: EUR 1,500,000,000\n5. Issue Price: 99.8 per cent. of the Aggregate Nominal Amount\n8. (i) Issue Date: 13 November 2023\n9. (i) Maturity Date: Interest Payment Date falling on or nearest to 13 November 2032\n23. Interest: Applicable\nRate of Interest: Fixed Rate to Floating Rate\nISIN Code: FR001400LZI6\n",
+  "expected": {
+   "issuer": "BNP Paribas",
+   "isin": "FR001400LZI6",
+   "currency": "EUR",
+   "size_mm": 1500.0,
+   "coupon_pct": 4.75,
+   "maturity": "2032-11-13"
+  }
+ },
+ {
+  "id": "en-sparkasse-cover",
+  "language": "en",
+  "source": "cover page only: ISIN without colon, governing law in a sentence, maturity given only as a year",
+  "text": "11 March 2026\nFinal Terms\nEUR 15,000,000 3.375 per cent. Senior Preferred Notes due 2036\nissued pursuant to the\nEuro 4,000,000,000\nDebt Issuance Programme\nof\nSparkasse KölnBonn\nSecurities identification\nCommon Code 331695998\nISIN Code DE000SKB09H0\nGerman Securities Code SKB09H\nDie Schuldverschreibungen unterliegen deutschem Recht. The Notes are governed by German law.\n",
+  "expected": {
+   "isin": "DE000SKB09H0",
+   "currency": "EUR",
+   "size_mm": 15.0,
+   "coupon_pct": 3.375,
+   "governing_law": "German law",
+   "maturity": null
+  }
+ },
+ {
+  "id": "de-labelled-rows",
+  "language": "de",
+  "source": "German labelled rows",
+  "text": "Endgültige Bedingungen\nEmittentin: Beispielbank AG\nISIN: DE000A1B2C30\nWährung: EUR\nGesamtnennbetrag: EUR 500.000.000\nZinssatz: 3,750 % p.a.\nBegebungstag: 15. Januar 2026\nFälligkeitstag: 15. Januar 2032\nAnwendbares Recht: Deutsches Recht\n",
+  "expected": {
+   "issuer": "Beispielbank AG",
+   "isin": "DE000A1B2C30",
+   "currency": "EUR",
+   "size_mm": 500.0,
+   "coupon_pct": 3.75,
+   "maturity": "2032-01-15",
+   "governing_law": "*"
+  }
+ },
+ {
+  "id": "fr-labelled-rows",
+  "language": "fr",
+  "source": "French labelled rows, spaces as thousands separators",
+  "text": "Conditions définitives\nÉmetteur: Banque Exemple SA\nDevise: EUR\nMontant nominal total: EUR 750 000 000\nTaux d'intérêt: 3,125 pour cent par an\nDate d'émission: 1er mars 2026\nDate d'échéance: 1 mars 2033\nDroit applicable: droit français\n",
+  "expected": {
+   "issuer": "Banque Exemple SA",
+   "currency": "EUR",
+   "size_mm": 750.0,
+   "coupon_pct": 3.125,
+   "maturity": "2033-03-01",
+   "governing_law": "*"
+  }
+ },
+ {
+  "id": "es-labelled-rows",
+  "language": "es",
+  "source": "Spanish labelled rows, 'de' inside dates",
+  "text": "Condiciones definitivas\nEmisor: Banco Ejemplo, S.A.\nDivisa: EUR\nImporte nominal total: EUR 300.000.000\nTipo de interés: 3,5 por ciento anual\nFecha de emisión: 10 de febrero de 2026\nFecha de vencimiento: 10 de febrero de 2031\nLey aplicable: Derecho español\n",
+  "expected": {
+   "issuer": "Banco Ejemplo, S.A.",
+   "currency": "EUR",
+   "size_mm": 300.0,
+   "coupon_pct": 3.5,
+   "maturity": "2031-02-10",
+   "governing_law": "*"
+  }
+ },
+ {
+  "id": "it-labelled-rows",
+  "language": "it",
+  "source": "Italian labelled rows",
+  "text": "Condizioni definitive\nEmittente: Banca Esempio S.p.A.\nValuta: EUR\nImporto nominale complessivo: EUR 400.000.000\nTasso di interesse: 3,25 per cento annuo\nData di emissione: 5 maggio 2026\nData di scadenza: 5 maggio 2030\nLegge applicabile: diritto italiano\n",
+  "expected": {
+   "issuer": "Banca Esempio S.p.A.",
+   "currency": "EUR",
+   "size_mm": 400.0,
+   "coupon_pct": 3.25,
+   "maturity": "2030-05-05",
+   "governing_law": "*"
+  }
+ },
+ {
+  "id": "nl-labelled-rows",
+  "language": "nl",
+  "source": "Dutch labelled rows",
+  "text": "Definitieve voorwaarden\nUitgevende instelling: Voorbeeldbank N.V.\nValuta: EUR\nTotale hoofdsom: EUR 600.000.000\nRentevoet: 3,0 procent per jaar\nUitgiftedatum: 12 september 2026\nEinddatum: 12 september 2031\nToepasselijk recht: Nederlands recht\n",
+  "expected": {
+   "issuer": "Voorbeeldbank N.V.",
+   "currency": "EUR",
+   "size_mm": 600.0,
+   "coupon_pct": 3.0,
+   "maturity": "2031-09-12",
+   "governing_law": "*"
+  }
+ }
+]

@@ -24,6 +24,7 @@ from app.deps import (
     get_investor_service,
     get_llm,
     get_orderbook_service,
+    get_report_service,
     get_termsheet_service,
 )
 from app.documents.service import DocumentService
@@ -31,6 +32,7 @@ from app.investors.service import InvestorService
 from app.llm.fake import FakeLLM
 from app.main import create_app
 from app.orderbook.service import OrderBookService
+from app.reports.service import ReportService
 from app.termsheets.service import TermSheetService
 from tests.fakes import (
     FakeAllocationRepository,
@@ -104,6 +106,12 @@ def build_env(llm: FakeLLM, auth_mode: str = "demo") -> Env:
     )
     app.dependency_overrides[get_allocation_service] = lambda: AllocationService(
         alloc_repo, book(), llm
+    )
+    app.dependency_overrides[get_report_service] = lambda: ReportService(
+        deals(),
+        FakeInvestorRepository(book_repo, repo, alloc_repo),
+        AllocationService(alloc_repo, book(), llm),
+        AuditService(audit),
     )
     app.dependency_overrides[get_termsheet_service] = lambda: TermSheetService(
         ts_repo, deals(), llm, AuditService(audit)

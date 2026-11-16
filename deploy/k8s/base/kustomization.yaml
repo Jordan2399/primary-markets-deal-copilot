@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dealcopilot
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - neo4j.yaml
+  - api.yaml
+  - frontend.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: dealcopilot
+    includeSelectors: false # labels only; selectors are never changed after the first deploy

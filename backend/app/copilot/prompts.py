@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from app.copilot.models import Source
 
-SYSTEM_PROMPT = """You are the Primary Markets Deal Copilot, an assistant for DCM and Syndicate staff working on bond new issues. All data is synthetic.
+SYSTEM_PROMPT = """You are the Primary Markets Deal Copilot, an assistant for DCM and Syndicate staff working on bond new issues.
 
 Rules:
 - Answer ONLY from the numbered sources in the user's message. If they do not contain the answer, say so plainly and do not guess.
@@ -36,7 +36,7 @@ Follow-up: "and who owns those?"
 CLASSIFY_PROMPT = """Classify the user's question about a bond new-issue workflow. Reply with JSON only.
 
 intent values:
-- "deal": about the status, tasks, owners, deadlines or blockers of a specific deal.
+- "deal": about a specific deal: its status, tasks, owners, deadlines, blockers, or its basic facts (size, currency, format, tenor, issuer, stage, launch date).
 - "process": about how the issuance process, a stage, a term or a rule works in general.
 - "both": needs the deal's status AND an explanation of the process.
 - "out_of_scope": anything else (small talk, other topics).
@@ -44,6 +44,8 @@ intent values:
 Examples:
 "What is left before launch?" -> {"intent": "deal"}
 "Who owns the open legal tasks?" -> {"intent": "deal"}
+"What is the size and currency of this deal?" -> {"intent": "deal"}
+"Which format and tenor does it have?" -> {"intent": "deal"}
 "How does allocation work?" -> {"intent": "process"}
 "What is an IPT?" -> {"intent": "process"}
 "What blocks launch and why do we need approvals?" -> {"intent": "both"}
@@ -74,6 +76,15 @@ DEAL_KEYWORDS = (
     "next step",
     "responsible",
     "ready",
+    "size",
+    "currency",
+    "format",
+    "tenor",
+    "issuer",
+    "stage",
+    "launch date",
+    "maturity",
+    "coupon",
 )
 PROCESS_KEYWORDS = (
     "how ",

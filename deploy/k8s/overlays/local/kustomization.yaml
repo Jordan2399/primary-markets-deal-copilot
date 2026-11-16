@@ -1,0 +1,36 @@
+# Local cluster (kind, minikube or Docker Desktop Kubernetes) for trying the deployment on a laptop.
+# Single copies, no TLS, Ollama stays on the host machine (GPU) as in docker-compose.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dealcopilot # also puts the Ollama component and the budgets in the right namespace
+resources:
+  - ../../base
+patches:
+  - target: {kind: ConfigMap, name: dealcopilot-config}
+    patch: |-
+      - op: replace
+        path: /data/APP_ENV
+        value: development
+      - op: replace
+        path: /data/OLLAMA_BASE_URL
+        value: http://host.docker.internal:11434
+      - op: replace
+        path: /data/CORS_ORIGINS
+        value: http://dealcopilot.localtest.me
+  - target: {kind: Ingress, name: dealcopilot}
+    patch: |-
+      # *.localtest.me always resolves to 127.0.0.1, so no hosts-file edit is needed.
+      - op: replace
+        path: /spec/rules/0/host
+        value: dealcopilot.localtest.me
+  # Images are loaded straight into the cluster (kind load docker-image ...), never pulled.
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target: {kind: Deployment, name: frontend}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never

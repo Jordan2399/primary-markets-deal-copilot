@@ -1,0 +1,82 @@
+# The graph database. A StatefulSet (not a Deployment) because it owns a disk that must stay
+# attached to the same pod across restarts. Neo4j Community cannot be clustered, so there is
+# exactly one replica; availability comes from the disk, not from copies.
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  labels: {app.kubernetes.io/name: neo4j}
+spec:
+  clusterIP: None # headless: the name "neo4j" resolves straight to the pod
+  selector: {app.kubernetes.io/name: neo4j}
+  ports:
+    - {name: bolt, port: 7687}
+    - {name: http, port: 7474}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  labels: {app.kubernetes.io/name: neo4j}
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: neo4j}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: neo4j}
+    spec:
+      securityContext:
+        # The official image runs as user 7474; fsGroup makes the mounted disk writable for it.
+        runAsUser: 7474
+        runAsGroup: 7474
+        fsGroup: 7474
+        runAsNonRoot: true
+      containers:
+        - name: neo4j
+          image: neo4j:5.26-community
+          ports:
+            - {name: bolt, containerPort: 7687}
+            - {name: http, containerPort: 7474}
+          env:
+            # The image treats every variable that starts with NEO4J_ as a database setting, so the
+            # password must NOT be called NEO4J_PASSWORD here (it would be read as a setting named
+            # PASSWORD and Neo4j would refuse to start). The API container still uses that name.
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: dealcopilot-secrets, key: NEO4J_PASSWORD}
+            # Kubernetes expands $(DB_PASSWORD) because it is defined above this line.
+            - name: NEO4J_AUTH
+              value: neo4j/$(DB_PASSWORD)
+            - {name: NEO4J_server_memory_heap_initial__size, value: 512m}
+            - {name: NEO4J_server_memory_heap_max__size, value: 1g}
+          resources:
+            requests: {cpu: 250m, memory: 1536Mi}
+            limits: {memory: 2560Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+          # Neo4j needs a while to start; the startup probe gives it up to 5 minutes before
+          # the liveness probe is allowed to restart it.
+          startupProbe:
+            tcpSocket: {port: bolt}
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket: {port: bolt}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: bolt}
+            periodSeconds: 20
+            failureThreshold: 6
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        # storageClassName is left unset: the cluster's default class is used. Overlays patch it.
+        resources:
+          requests: {storage: 10Gi}

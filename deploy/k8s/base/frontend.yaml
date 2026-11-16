@@ -1,0 +1,59 @@
+# The Next.js web app. It also forwards /api/* calls to the API (see frontend/app/api), so the
+# browser only ever talks to this service and the API never needs to be public.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels: {app.kubernetes.io/name: frontend}
+spec:
+  selector: {app.kubernetes.io/name: frontend}
+  ports:
+    - {name: http, port: 3000, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels: {app.kubernetes.io/name: frontend}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: frontend}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: frontend}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001 # the "app" user created in frontend/Dockerfile
+        runAsGroup: 10001
+      containers:
+        - name: frontend
+          image: dealcopilot-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - name: API_INTERNAL_URL
+              valueFrom:
+                configMapKeyRef: {name: dealcopilot-config, key: API_INTERNAL_URL}
+            - name: COOKIE_SECURE
+              valueFrom:
+                configMapKeyRef: {name: dealcopilot-config, key: COOKIE_SECURE}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          startupProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 20
+            failureThreshold: 3

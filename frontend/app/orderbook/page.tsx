@@ -56,7 +56,7 @@ export default function OrderBookPage() {
   return (
     <main className="container wide">
       <h1>Order book</h1>
-      <p className="muted">Demand, price tension and flagged orders for deals from Book building onwards. All orders are synthetic.</p>
+      <p className="muted">Demand, price tension and flagged orders for deals from Book building onwards.</p>
       {!allowed ? (
         <div className="alert">The order book is for the Syndicate, Approver and Administrator roles. Your account does not have access. Sign in with a different account to use this page.</div>
       ) : (

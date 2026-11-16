@@ -41,6 +41,7 @@ export default function AuditPage() {
               <option value="orderbook">order book</option>
               <option value="allocation">allocation</option>
               <option value="document">term sheets</option>
+              <option value="report">report exports</option>
             </select>
           </label>
           <ErrorBox error={error} />

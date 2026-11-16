@@ -1,0 +1,20 @@
+# The one public entry point. Overlays set the real host name and TLS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dealcopilot
+  annotations:
+    # Term sheet uploads can be 5 MB; the nginx default (1 MB) would refuse them with a 413.
+    nginx.ingress.kubernetes.io/proxy-body-size: 6m
+    # The Copilot and term sheet reading can take minutes on a local model.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "330"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: dealcopilot.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: frontend, port: {name: http}}
