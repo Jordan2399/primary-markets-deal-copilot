@@ -7,6 +7,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.admin.router import router as admin_router
 from app.allocation.router import router as allocation_router
 from app.audit.router import router as audit_router
 from app.auth.router import router as auth_router
@@ -23,6 +24,8 @@ from app.health.router import router as health_router
 from app.investors.router import router as investors_router
 from app.llm.factory import create_provider
 from app.orderbook.router import router as orderbook_router
+from app.reports.router import router as reports_router
+from app.search.router import router as search_router
 from app.termsheets.router import router as termsheets_router
 
 log = structlog.get_logger()
@@ -75,6 +78,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(conversations_router, prefix="/api/v1")
     app.include_router(deals_router, prefix="/api/v1")
+    app.include_router(reports_router, prefix="/api/v1")
+    app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(search_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
     app.include_router(copilot_router, prefix="/api/v1")
     app.include_router(orderbook_router, prefix="/api/v1")

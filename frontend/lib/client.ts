@@ -6,6 +6,7 @@ import type {
   DealNetwork, DealSummary, DemoAccount, DocumentSummary, Extraction, InvestorPage, InvestorProfile, InvestorQuery,
   Issuer, OrderBook, Target, Proposal, ProposalSummary, Role, Sample, SimulateInput,
   Stage, Task, TaskStatus, UserInfo, ValidationReport,
+  AdminOverview, ReportOverview, SearchResults,
 } from "./types";
 
 export const ROLES: Role[] = ["viewer", "marketer", "syndicate", "approver", "admin"];
@@ -127,6 +128,10 @@ export const api = {
     const text = params.toString();
     return request<InvestorPage>(`/investors${text ? `?${text}` : ""}`);
   },
+  // Day 3c: reports, admin console, global search.
+  reportOverview: () => request<ReportOverview>("/reports/overview"),
+  adminOverview: () => request<AdminOverview>("/admin/overview"),
+  search: (q: string) => request<SearchResults>(`/search?q=${encodeURIComponent(q)}`),
   investor: (id: string) => request<InvestorProfile>(`/investors/${encodeURIComponent(id)}`),
   investorNetwork: (dealId: string) => request<DealNetwork>(`/deals/${encodeURIComponent(dealId)}/investor-network`),
   investorTargets: (dealId: string, limit = 15) =>

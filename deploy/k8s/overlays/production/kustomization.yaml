@@ -1,0 +1,47 @@
+# Production-style deployment on a managed cluster (AKS, EKS, GKE or your own).
+# Edit the three values marked CHANGE ME, or let the deploy script do it (see the guide).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dealcopilot # also puts the Ollama component and the budgets in the right namespace
+resources:
+  - ../../base
+  - pdb.yaml
+components:
+  # Remove this line if you use an Ollama outside the cluster, and set OLLAMA_BASE_URL below.
+  - ../../components/ollama
+replicas:
+  - {name: api, count: 2}
+  - {name: frontend, count: 2}
+patches:
+  - target: {kind: ConfigMap, name: dealcopilot-config}
+    patch: |-
+      - op: replace
+        path: /data/COOKIE_SECURE
+        value: "true"
+      - op: replace
+        path: /data/CORS_ORIGINS
+        value: https://dealcopilot.example.com # CHANGE ME: the public address (https)
+  - target: {kind: Ingress, name: dealcopilot}
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dealcopilot.example.com # CHANGE ME: your domain name
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts: [dealcopilot.example.com] # CHANGE ME: same domain name
+            secretName: dealcopilot-tls # created by cert-manager, or add your own certificate
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt # CHANGE ME if your ClusterIssuer has another name; delete if you do not use cert-manager
+  # Larger disks for real data. Add "storageClassName" here when the default class is not what you want.
+  - target: {kind: StatefulSet, name: neo4j}
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 20Gi
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 512Mi

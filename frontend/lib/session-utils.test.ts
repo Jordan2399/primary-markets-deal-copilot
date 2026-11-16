@@ -29,7 +29,8 @@ describe("linksFor", () => {
     expect(labels("marketer")).toContain("Investors");
   });
   it("shows everything to admin", () => {
-    expect(labels("admin")).toHaveLength(8);
+    expect(labels("admin")).toHaveLength(10);
+    expect(labels("admin")).toEqual(expect.arrayContaining(["Reports", "Admin"]));
   });
 });
 

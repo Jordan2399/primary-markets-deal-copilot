@@ -1,0 +1,16 @@
+sequenceDiagram
+  actor U as Syndicate user
+  participant W as Web app
+  participant A as API
+  participant G as Neo4j
+  participant M as Model (Ollama)
+  U->>W: Ask "What is left before launch?"
+  W->>A: POST /copilot/chat (token from cookie)
+  A->>A: rewrite follow-up, classify intent
+  A->>G: read tasks of the deal and search playbook
+  G-->>A: numbered sources S1..Sn
+  A->>M: answer ONLY from these sources, cite [S#]
+  M-->>A: streamed tokens
+  A-->>W: meta (sources), tokens, done (cited)
+  A->>G: audit event: model, prompt hash, sources
+  W-->>U: answer with an Evidence panel

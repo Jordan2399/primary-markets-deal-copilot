@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Primary Markets Deal Copilot",
-  description: "Synthetic-data demo: deal workflow, order book, allocation, term sheets and an AI copilot",
+  description: "Deal workflow, order book, allocation, term sheets and an AI copilot for primary markets teams",
 };
 
 // Runs before the page paints, so a saved dark theme does not flash white first.

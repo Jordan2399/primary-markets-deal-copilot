@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { ErrorBox, Pill, Progress, fmtDate } from "@/components/ui";
 import { api, getRole } from "@/lib/client";
+import { firstName, greeting } from "@/lib/page-title";
+import { useSession } from "@/lib/session";
 import type { CreateDealInput, DealSummary, Issuer, Stage } from "@/lib/types";
 
 /** A date `days` from today as YYYY-MM-DD (used for the default dates of a new deal). */
@@ -16,6 +18,7 @@ function tomorrowPlus(days: number): string {
 
 /** The pipeline page: KPI tiles on top, then one column per stage with its deals. */
 export default function Pipeline() {
+  const { user } = useSession();
   const [stages, setStages] = useState<Stage[]>([]);
   const [deals, setDeals] = useState<DealSummary[]>([]);
   const [issuers, setIssuers] = useState<Issuer[]>([]);
@@ -64,8 +67,9 @@ export default function Pipeline() {
     <main className="container wide">
       <div className="row between">
         <div>
+          <p className="eyebrow">{greeting(new Date().getHours())}, {firstName(user.display_name)}</p>
           <h1>Deal pipeline</h1>
-          <p className="muted">New-issue deals by stage, from mandate to booking. All data is synthetic.</p>
+          <p className="muted">New-issue deals by stage, from mandate to booking.</p>
         </div>
         {canCreate && (
           <button className="primary" onClick={() => setShowForm((v) => !v)}>

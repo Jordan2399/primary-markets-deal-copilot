@@ -25,3 +25,7 @@ tsconfig.tsbuildinfo
 Thumbs.db
 .idea/
 .vscode/
+
+# Kubernetes: real secrets and generated files never go to git
+deploy/k8s/secrets.env
+deploy/k8s/.generated/

@@ -10,7 +10,7 @@ export default async function Home() {
     <main className="container">
       <h1>System status</h1>
       <p className="muted">
-        Live health of the services behind this application. All data in this project is synthetic.
+        Live health of the services behind this application.
       </p>
 
       <section className="card">

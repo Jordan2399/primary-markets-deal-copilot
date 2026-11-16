@@ -46,7 +46,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     });
     // Copy back only a few safe response headers.
     const out = new Headers();
-    for (const name of ["content-type", "cache-control", "x-request-id"]) {
+    for (const name of ["content-type", "content-disposition", "cache-control", "x-request-id"]) {
       const value = upstream.headers.get(name);
       if (value) out.set(name, value);
     }
